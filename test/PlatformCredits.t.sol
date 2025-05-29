@@ -13,7 +13,7 @@ contract PlatformCreditsTest is Test {
         credits = new PlatformCredits(owner);
     }
 
-    function testInitialState() public {
+    function testInitialState() public view {
         assertEq(credits.name(), "PlatformCredits", "Name should be PlatformCredits");
         assertEq(credits.symbol(), "CRED", "Symbol should be CRED");
         assertEq(credits.owner(), owner, "Owner should be set correctly");
