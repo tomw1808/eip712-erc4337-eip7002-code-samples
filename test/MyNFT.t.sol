@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "src/MyNFT.sol";
 import "src/PlatformCredits.sol";
-import "@openzeppelin/contracts/token/ERC20/errors/IERC20Errors.sol";
+import "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
 contract MyNFTTest is Test {
     MyNFT public myNFT;
@@ -26,7 +26,7 @@ contract MyNFTTest is Test {
         credits.grantCredits(buyer, 2 * NFT_PRICE); // Grant enough for a couple of NFTs
     }
 
-    function testInitialState() public {
+    function testInitialState() public view {
         assertEq(myNFT.name(), "MyNFT", "Name should be MyNFT");
         assertEq(myNFT.symbol(), "MYNFT", "Symbol should be MYNFT");
         assertEq(myNFT.owner(), owner, "Owner should be set correctly");
