@@ -203,7 +203,22 @@ contract MyNFTTest is Test {
         bytes32 buyNFTActionTypehash = keccak256(
             "BuyNFTAction(address user,uint256 price,uint256 nonce)"
         );
-        bytes32 domainSeparator = myNFT.DOMAIN_SEPARATOR(); // Domain separator from MyNFT contract
+        // Reconstruct the domain separator as it's internal in EIP712
+        // Values must match those used in MyNFT's EIP712 constructor: EIP712("MyNFT", "1")
+        bytes32 eip712DomainTypehash = keccak256(
+            "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+        );
+        bytes32 nameHash = keccak256(bytes("MyNFT"));
+        bytes32 versionHash = keccak256(bytes("1"));
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                eip712DomainTypehash,
+                nameHash,
+                versionHash,
+                block.chainid, // or vm.chainId() - block.chainid is fine in Foundry tests
+                address(myNFT)
+            )
+        );
 
         bytes32 structHash = keccak256(
             abi.encode(
