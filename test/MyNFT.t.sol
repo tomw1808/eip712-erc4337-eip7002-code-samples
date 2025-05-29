@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "src/MyNFT.sol";
 import "src/PlatformCredits.sol";
-import "@openzeppelin/contracts/token/ERC20/errors/IERC20Errors.sol";
+import "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import "@openzeppelin/contracts/access/Ownable.sol"; // For OwnableUnauthorizedAccount error
 
 contract MyNFTTest is Test {
