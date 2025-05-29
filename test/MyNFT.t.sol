@@ -117,12 +117,12 @@ contract MyNFTTest is Test {
         assertEq(credits.balanceOf(owner), ownerInitialBalance + myNFTContractBalance, "Owner should have received the withdrawn credits");
     }
 
-    function testFail_Constructor_InvalidCreditsAddress() public {
+    function test_RevertWhen_Constructor_InvalidCreditsAddress() public {
         vm.expectRevert("MyNFT: Invalid credits token address");
         new MyNFT(owner, address(0));
     }
 
-    function testFail_BuyNFT_InsufficientAllowance() public {
+    function test_RevertWhen_BuyNFT_InsufficientAllowance() public {
         uint256 insufficientAllowance = NFT_PRICE / 2;
 
         vm.startPrank(buyer);
@@ -148,7 +148,7 @@ contract MyNFTTest is Test {
         assertEq(credits.balanceOf(owner), ownerInitialBalance, "Owner balance should not change");
     }
 
-    function testFail_WithdrawCredits_NotOwner() public {
+    function test_RevertWhen_WithdrawCredits_NotOwner() public {
         address notOwner = address(0x3);
 
         // Try to withdraw credits as notOwner
