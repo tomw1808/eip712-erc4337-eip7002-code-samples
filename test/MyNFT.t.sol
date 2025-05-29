@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "src/MyNFT.sol";
 import "src/PlatformCredits.sol";
+import "@openzeppelin/contracts/token/ERC20/errors/IERC20Errors.sol";
 
 contract MyNFTTest is Test {
     MyNFT public myNFT;
@@ -69,7 +70,8 @@ contract MyNFTTest is Test {
         // or potentially by the ERC20's internal check if it reverts before returning false.
         // Foundry's default behavior for external calls that revert without a specific message is "Transaction reverted without a reason string"
         // However, our contract has a specific revert message.
-        vm.expectRevert("MyNFT: Credits transfer failed");
+        // The transferFrom will revert with ERC20InsufficientBalance from the PlatformCredits (ERC20) contract.
+        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, poorBuyer, NFT_PRICE / 2, NFT_PRICE));
         myNFT.buyNFT();
         vm.stopPrank();
     }
