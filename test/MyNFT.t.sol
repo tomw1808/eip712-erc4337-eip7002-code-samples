@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "src/MyNFT.sol";
 import "src/PlatformCredits.sol";
-import "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import "@openzeppelin/contracts/token/ERC20/errors/IERC20Errors.sol"; // Corrected import
 import "@openzeppelin/contracts/access/Ownable.sol"; // For OwnableUnauthorizedAccount error
 
 contract MyNFTTest is Test {
@@ -12,8 +12,16 @@ contract MyNFTTest is Test {
     PlatformCredits public credits;
 
     address owner = address(this); // Test contract itself can be the owner for deployment
-    address buyer = address(0x1);
+    address buyer = address(0x1); // Generic buyer for simple buyNFT tests
     uint256 constant NFT_PRICE = 100 * 10**18;
+
+    // For buyNFTWithSignatureAndPermit test
+    // User who signs messages (Anvil account #3)
+    uint256 constant USER_SIGNER_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+    address userSignerAddress = vm.addr(USER_SIGNER_PRIVATE_KEY);
+    // Relayer who submits the transaction (Anvil account #4)
+    address relayerAddress = address(0x4);
+
 
     function setUp() public {
         // Deploy PlatformCredits first
@@ -155,5 +163,117 @@ contract MyNFTTest is Test {
         vm.prank(notOwner);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
         myNFT.withdrawCredits();
+    }
+
+    // --- Helpers for buyNFTWithSignatureAndPermit ---
+
+    // Helper to compute the EIP-712 hash for a PlatformCredits permit
+    function getPlatformCreditsPermitDigest(
+        address tokenOwner,
+        address spenderAddress,
+        uint256 value,
+        uint256 nonce,
+        uint256 deadline
+    ) internal view returns (bytes32) {
+        bytes32 permitTypehash = keccak256(
+            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+        );
+        bytes32 domainSeparator = credits.DOMAIN_SEPARATOR(); // Domain separator from PlatformCredits
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                permitTypehash,
+                tokenOwner,
+                spenderAddress,
+                value,
+                nonce,
+                deadline
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    // Helper to compute the EIP-712 hash for the MyNFT BuyNFTAction
+    function getBuyNFTActionDigest(
+        address user,
+        uint256 price,
+        uint256 nonce
+    ) internal view returns (bytes32) {
+        // This must match the BUY_NFT_ACTION_TYPEHASH in MyNFT.sol
+        bytes32 buyNFTActionTypehash = keccak256(
+            "BuyNFTAction(address user,uint256 price,uint256 nonce)"
+        );
+        bytes32 domainSeparator = myNFT.DOMAIN_SEPARATOR(); // Domain separator from MyNFT contract
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                buyNFTActionTypehash,
+                user,
+                price,
+                nonce
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    function testBuyNFTWithSignatureAndPermit() public {
+        // --- Arrange ---
+        // Grant credits to the userSignerAddress
+        uint256 userInitialCredits = 3 * NFT_PRICE;
+        vm.prank(owner);
+        credits.grantCredits(userSignerAddress, userInitialCredits);
+        assertEq(credits.balanceOf(userSignerAddress), userInitialCredits, "User signer initial credits not set");
+
+        uint256 ownerInitialCredits = credits.balanceOf(owner); // MyNFT owner
+
+        // Permit details for PlatformCredits
+        uint256 permitDeadline = block.timestamp + 1 hours;
+        uint256 permitNonce = credits.nonces(userSignerAddress);
+
+        // Action details for MyNFT
+        uint256 actionNonce = myNFT.actionNonces(userSignerAddress);
+
+        // --- Act: Signatures ---
+
+        // 1. User signs permit for PlatformCredits (allowing MyNFT to spend NFT_PRICE)
+        bytes32 permitDigest = getPlatformCreditsPermitDigest(
+            userSignerAddress,          // owner of credits
+            address(myNFT),             // spender (MyNFT contract)
+            NFT_PRICE,                  // value
+            permitNonce,                // nonce for PlatformCredits permit
+            permitDeadline
+        );
+        (uint8 permitV, bytes32 permitR, bytes32 permitS) = vm.sign(USER_SIGNER_PRIVATE_KEY, permitDigest);
+
+        // 2. User signs action for MyNFT (authorizing the purchase)
+        bytes32 actionDigest = getBuyNFTActionDigest(
+            userSignerAddress,          // user performing the action
+            NFT_PRICE,                  // price of NFT
+            actionNonce                 // nonce for MyNFT action
+        );
+        (uint8 actionV, bytes32 actionR, bytes32 actionS) = vm.sign(USER_SIGNER_PRIVATE_KEY, actionDigest);
+
+        // --- Act: Transaction by Relayer ---
+        vm.prank(relayerAddress); // Relayer submits the transaction
+        uint256 tokenId = myNFT.buyNFTWithSignatureAndPermit(
+            userSignerAddress,
+            permitDeadline,
+            permitV, permitR, permitS,
+            actionV, actionR, actionS
+        );
+
+        // --- Assert ---
+        assertEq(tokenId, 1, "Token ID should be 1 for the first mint via signature");
+        assertEq(myNFT.ownerOf(tokenId), userSignerAddress, "User signer should own the new NFT");
+
+        // Check credit balances
+        assertEq(credits.balanceOf(userSignerAddress), userInitialCredits - NFT_PRICE, "User signer credits should decrease by NFT_PRICE");
+        assertEq(credits.balanceOf(owner), ownerInitialCredits + NFT_PRICE, "MyNFT owner credits should increase by NFT_PRICE");
+        assertEq(credits.balanceOf(address(myNFT)), 0, "MyNFT contract should not hold credits");
+
+
+        // Check nonces
+        assertEq(credits.nonces(userSignerAddress), permitNonce + 1, "PlatformCredits permit nonce should be incremented");
+        assertEq(myNFT.actionNonces(userSignerAddress), actionNonce + 1, "MyNFT action nonce should be incremented");
     }
 }
