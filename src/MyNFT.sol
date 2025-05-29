@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
  
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol"; // Interface for PlatformCredits with permit
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol"; // Interface for PlatformCredits with permit
 import "@openzeppelin/contracts/access/Ownable.sol";
 // Counters is no longer needed for simple increments in Solidity >=0.8.0
  
@@ -13,7 +14,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract MyNFT is ERC721, Ownable {
     uint256 private _tokenIdCounter; // Start from 0, first token ID will be 1
  
-    IERC20Permit public immutable paymentCredits; // Address of PlatformCredits token
+    IERC20 public immutable paymentCredits; // Address of PlatformCredits token
     // Price in CRED tokens (e.g., 100 credits, assuming 18 decimals like the token)
     uint256 public constant NFT_PRICE_IN_CREDITS = 100 * 10**18;
  
@@ -24,7 +25,7 @@ contract MyNFT is ERC721, Ownable {
         Ownable(initialOwner)
     {
         require(_paymentCreditsAddress != address(0), "MyNFT: Invalid credits token address");
-        paymentCredits = IERC20Permit(_paymentCreditsAddress);
+        paymentCredits = IERC20(_paymentCreditsAddress);
     }
  
     /**
@@ -84,7 +85,7 @@ contract MyNFT is ERC721, Ownable {
         // Step 1: Call permit on the PlatformCredits contract
         // This grants allowance if the signature is valid
         // It will revert if the signature is invalid, expired, or already used.
-        paymentCredits.permit(buyer, address(this), currentPrice, deadline, v, r, s);
+        IERC20Permit(address(paymentCredits)).permit(buyer, address(this), currentPrice, deadline, v, r, s);
 
         // Step 2: Allowance is now set, proceed with transferFrom
         bool success = paymentCredits.transferFrom(buyer, owner(), currentPrice);
