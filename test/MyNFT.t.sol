@@ -4,7 +4,8 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "src/MyNFT.sol";
 import "src/PlatformCredits.sol";
-import "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import "@openzeppelin/contracts/token/ERC20/errors/IERC20Errors.sol";
+import "@openzeppelin/contracts/access/Ownable.sol"; // For OwnableUnauthorizedAccount error
 
 contract MyNFTTest is Test {
     MyNFT public myNFT;
@@ -114,5 +115,45 @@ contract MyNFTTest is Test {
 
         assertEq(credits.balanceOf(address(myNFT)), 0, "MyNFT contract balance should be 0 after withdrawal");
         assertEq(credits.balanceOf(owner), ownerInitialBalance + myNFTContractBalance, "Owner should have received the withdrawn credits");
+    }
+
+    function testFail_Constructor_InvalidCreditsAddress() public {
+        vm.expectRevert("MyNFT: Invalid credits token address");
+        new MyNFT(owner, address(0));
+    }
+
+    function testFail_BuyNFT_InsufficientAllowance() public {
+        uint256 insufficientAllowance = NFT_PRICE / 2;
+
+        vm.startPrank(buyer);
+        // Approve an amount less than the NFT price
+        credits.approve(address(myNFT), insufficientAllowance);
+
+        vm.expectRevert("MyNFT: Check credits allowance");
+        myNFT.buyNFT();
+        vm.stopPrank();
+    }
+
+    function test_WithdrawCredits_NoBalance() public {
+        // Ensure MyNFT contract has no credits
+        uint256 myNFTContractBalance = credits.balanceOf(address(myNFT));
+        assertEq(myNFTContractBalance, 0, "MyNFT contract should initially have 0 credits for this test");
+
+        uint256 ownerInitialBalance = credits.balanceOf(owner);
+
+        vm.prank(owner); // Only owner of MyNFT can withdraw
+        myNFT.withdrawCredits(); // Should execute without error and without transferring anything
+
+        assertEq(credits.balanceOf(address(myNFT)), 0, "MyNFT contract balance should still be 0");
+        assertEq(credits.balanceOf(owner), ownerInitialBalance, "Owner balance should not change");
+    }
+
+    function testFail_WithdrawCredits_NotOwner() public {
+        address notOwner = address(0x3);
+
+        // Try to withdraw credits as notOwner
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+        myNFT.withdrawCredits();
     }
 }
