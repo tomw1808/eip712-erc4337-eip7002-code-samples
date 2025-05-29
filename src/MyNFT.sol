@@ -16,7 +16,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol"; // For ecrecover
 contract MyNFT is ERC721, Ownable, EIP712 {
     uint256 private _tokenIdCounter; // Start from 0, first token ID will be 1
  
-    IERC20Permit public immutable paymentCredits; // Address of PlatformCredits token
+    IERC20 public immutable paymentCredits; // Address of PlatformCredits token
     // Price in CRED tokens (e.g., 100 credits, assuming 18 decimals like the token)
     uint256 public constant NFT_PRICE_IN_CREDITS = 100 * 10**18;
 
@@ -35,7 +35,7 @@ contract MyNFT is ERC721, Ownable, EIP712 {
         Ownable(initialOwner)
     {
         require(_paymentCreditsAddress != address(0), "MyNFT: Invalid credits token address");
-        paymentCredits = IERC20Permit(_paymentCreditsAddress);
+        paymentCredits = IERC20(_paymentCreditsAddress);
     }
  
     /**
@@ -152,8 +152,7 @@ contract MyNFT is ERC721, Ownable, EIP712 {
 
         // Step 2: Call permit on the PlatformCredits contract (ERC2612)
         // This grants allowance to this MyNFT contract to spend 'user's credits.
-        // The paymentCredits variable is already IERC20Permit.
-        paymentCredits.permit(user, address(this), currentPrice, permitDeadline, permitV, permitR, permitS);
+        IERC20Permit(address(paymentCredits)).permit(user, address(this), currentPrice, permitDeadline, permitV, permitR, permitS);
 
         // Step 3: Allowance is now set, proceed with transferFrom
         // Credits are transferred from 'user' to the owner of this MyNFT contract.
