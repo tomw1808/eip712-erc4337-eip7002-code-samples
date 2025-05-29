@@ -46,7 +46,13 @@ contract PlatformCreditsTest is Test {
         uint256 nonce,
         uint256 deadline
     ) internal view returns (bytes32) {
-        bytes32 permitTypehash = credits.PERMIT_TYPEHASH();
+        // Recreate PERMIT_TYPEHASH as it's private in ERC20Permit
+        // bytes32 PERMIT_TYPEHASH = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+        // For OpenZeppelin 5.0, the typehash string is slightly different for EIP712 (it includes the name and version of the contract in the domain separator, but the Permit struct itself is standard)
+        // The PERMIT_TYPEHASH itself is standard:
+        bytes32 permitTypehash = keccak256(
+            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+        );
         bytes32 domainSeparator = credits.DOMAIN_SEPARATOR();
 
         bytes32 structHash = keccak256(
