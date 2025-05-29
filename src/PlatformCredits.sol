@@ -26,7 +26,5 @@ contract PlatformCredits is ERC20, ERC20Permit, Ownable {
     function grantCredits(address to, uint256 amount) public onlyOwner {
         _mint(to, amount); // Internally, granting credits is minting tokens
     }
- 
-    // Later, we will add ERC2612 permit functionality here!
 }
  
