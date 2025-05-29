@@ -135,37 +135,32 @@ contract MyNFT is ERC721, Ownable, EIP712 {
         bytes32 actionR,
         bytes32 actionS
     ) public returns (uint256) {
-        uint256 currentPrice = NFT_PRICE_IN_CREDITS;
-        uint256 nonce = actionNonces[user];
-
         // Step 1: Verify the action signature (EIP-712)
-        bytes32 actionStructHash = keccak256(
-            abi.encode(BUY_NFT_ACTION_TYPEHASH, user, currentPrice, nonce)
-        );
-        bytes32 actionDigest = _hashTypedDataV4(actionStructHash); // EIP712 helper
+        // The nonce for signature verification must be the current nonce *before* incrementing.
+        bytes32 digestForSigVerification = _hashTypedDataV4(keccak256(
+            abi.encode(BUY_NFT_ACTION_TYPEHASH, user, NFT_PRICE_IN_CREDITS, actionNonces[user])
+        ));
         
-        address recoveredSigner = ECDSA.recover(actionDigest, actionV, actionR, actionS);
-        require(recoveredSigner != address(0), "MyNFT: Invalid action signature (zero address)");
-        require(recoveredSigner == user, "MyNFT: Action signature signer mismatch");
+        address signer = ECDSA.recover(digestForSigVerification, actionV, actionR, actionS);
+        require(signer != address(0), "MyNFT: Invalid action signature (zero address)");
+        require(signer == user, "MyNFT: Action signature signer mismatch");
 
-        // Increment nonce for replay protection of the action signature
+        // Increment nonce for replay protection of the action signature *after* it's used.
         actionNonces[user]++;
 
         // Step 2: Call permit on the PlatformCredits contract (ERC2612)
         // This grants allowance to this MyNFT contract to spend 'user's credits.
-        IERC20Permit(address(paymentCredits)).permit(user, address(this), currentPrice, permitDeadline, permitV, permitR, permitS);
+        IERC20Permit(address(paymentCredits)).permit(user, address(this), NFT_PRICE_IN_CREDITS, permitDeadline, permitV, permitR, permitS);
 
         // Step 3: Allowance is now set, proceed with transferFrom
         // Credits are transferred from 'user' to the owner of this MyNFT contract.
-        bool success = paymentCredits.transferFrom(user, owner(), currentPrice);
-        require(success, "MyNFT: Credits transfer failed after permit and action signature");
+        require(paymentCredits.transferFrom(user, owner(), NFT_PRICE_IN_CREDITS), "MyNFT: Credits transfer failed after permit and action signature");
 
         // Step 4: Mint the NFT to the 'user'
         _tokenIdCounter++;
-        uint256 newTokenId = _tokenIdCounter;
-        _safeMint(user, newTokenId); // Mint to the 'user', not msg.sender (the relayer)
+        _safeMint(user, _tokenIdCounter); // Mint to the 'user', not msg.sender (the relayer)
 
-        emit NFTMinted(user, newTokenId);
-        return newTokenId;
+        emit NFTMinted(user, _tokenIdCounter);
+        return _tokenIdCounter;
     }
 }
