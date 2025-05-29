@@ -234,61 +234,60 @@ contract MyNFTTest is Test {
     function testBuyNFTWithSignatureAndPermit() public {
         // --- Arrange ---
         // Grant credits to the userSignerAddress
-        uint256 userInitialCredits = 3 * NFT_PRICE;
         vm.prank(owner);
-        credits.grantCredits(userSignerAddress, userInitialCredits);
-        assertEq(credits.balanceOf(userSignerAddress), userInitialCredits, "User signer initial credits not set");
+        credits.grantCredits(userSignerAddress, 3 * NFT_PRICE);
+        assertEq(credits.balanceOf(userSignerAddress), 3 * NFT_PRICE, "User signer initial credits not set");
 
-        uint256 ownerInitialCredits = credits.balanceOf(owner); // MyNFT owner
-
-        // Permit details for PlatformCredits
-        uint256 permitDeadline = block.timestamp + 1 hours;
-        uint256 permitNonce = credits.nonces(userSignerAddress);
-
-        // Action details for MyNFT
-        uint256 actionNonce = myNFT.actionNonces(userSignerAddress);
+        // Store initial nonces before they are used and incremented
+        uint256 initialPermitNonce = credits.nonces(userSignerAddress);
+        uint256 initialActionNonce = myNFT.actionNonces(userSignerAddress);
+        uint256 initialOwnerCredits = credits.balanceOf(owner); // MyNFT owner
 
         // --- Act: Signatures ---
 
         // 1. User signs permit for PlatformCredits (allowing MyNFT to spend NFT_PRICE)
-        bytes32 permitDigest = getPlatformCreditsPermitDigest(
-            userSignerAddress,          // owner of credits
-            address(myNFT),             // spender (MyNFT contract)
-            NFT_PRICE,                  // value
-            permitNonce,                // nonce for PlatformCredits permit
-            permitDeadline
+        (uint8 permitV, bytes32 permitR, bytes32 permitS) = vm.sign(
+            USER_SIGNER_PRIVATE_KEY,
+            getPlatformCreditsPermitDigest(
+                userSignerAddress,          // owner of credits
+                address(myNFT),             // spender (MyNFT contract)
+                NFT_PRICE,                  // value
+                initialPermitNonce,         // nonce for PlatformCredits permit
+                block.timestamp + 1 hours   // deadline
+            )
         );
-        (uint8 permitV, bytes32 permitR, bytes32 permitS) = vm.sign(USER_SIGNER_PRIVATE_KEY, permitDigest);
 
         // 2. User signs action for MyNFT (authorizing the purchase)
-        bytes32 actionDigest = getBuyNFTActionDigest(
-            userSignerAddress,          // user performing the action
-            NFT_PRICE,                  // price of NFT
-            actionNonce                 // nonce for MyNFT action
+        (uint8 actionV, bytes32 actionR, bytes32 actionS) = vm.sign(
+            USER_SIGNER_PRIVATE_KEY,
+            getBuyNFTActionDigest(
+                userSignerAddress,          // user performing the action
+                NFT_PRICE,                  // price of NFT
+                initialActionNonce          // nonce for MyNFT action
+            )
         );
-        (uint8 actionV, bytes32 actionR, bytes32 actionS) = vm.sign(USER_SIGNER_PRIVATE_KEY, actionDigest);
 
         // --- Act: Transaction by Relayer ---
         vm.prank(relayerAddress); // Relayer submits the transaction
-        uint256 tokenId = myNFT.buyNFTWithSignatureAndPermit(
+        uint256 mintedTokenId = myNFT.buyNFTWithSignatureAndPermit(
             userSignerAddress,
-            permitDeadline,
+            block.timestamp + 1 hours, // permitDeadline
             permitV, permitR, permitS,
             actionV, actionR, actionS
         );
 
         // --- Assert ---
-        assertEq(tokenId, 1, "Token ID should be 1 for the first mint via signature");
-        assertEq(myNFT.ownerOf(tokenId), userSignerAddress, "User signer should own the new NFT");
+        assertEq(mintedTokenId, 1, "Token ID should be 1 for the first mint via signature");
+        assertEq(myNFT.ownerOf(mintedTokenId), userSignerAddress, "User signer should own the new NFT");
 
         // Check credit balances
-        assertEq(credits.balanceOf(userSignerAddress), userInitialCredits - NFT_PRICE, "User signer credits should decrease by NFT_PRICE");
-        assertEq(credits.balanceOf(owner), ownerInitialCredits + NFT_PRICE, "MyNFT owner credits should increase by NFT_PRICE");
+        assertEq(credits.balanceOf(userSignerAddress), (3 * NFT_PRICE) - NFT_PRICE, "User signer credits should decrease by NFT_PRICE");
+        assertEq(credits.balanceOf(owner), initialOwnerCredits + NFT_PRICE, "MyNFT owner credits should increase by NFT_PRICE");
         assertEq(credits.balanceOf(address(myNFT)), 0, "MyNFT contract should not hold credits");
 
 
         // Check nonces
-        assertEq(credits.nonces(userSignerAddress), permitNonce + 1, "PlatformCredits permit nonce should be incremented");
-        assertEq(myNFT.actionNonces(userSignerAddress), actionNonce + 1, "MyNFT action nonce should be incremented");
+        assertEq(credits.nonces(userSignerAddress), initialPermitNonce + 1, "PlatformCredits permit nonce should be incremented");
+        assertEq(myNFT.actionNonces(userSignerAddress), initialActionNonce + 1, "MyNFT action nonce should be incremented");
     }
 }
