@@ -6,6 +6,10 @@ Welcome, intrepid developer, to the definitive, hands-on guide to mastering **Ac
 
 This repository is meticulously structured into branches, each a stepping stone towards AA enlightenment. We start from the ground up, dissecting problems and progressively unveiling solutions, culminating in the cutting edge of wallet technology.
 
+## 🎓 Companion Tutorial 🎓
+
+This repository serves as the hands-on code companion to the **[Ultimate Gasless Onboarding & Account Abstraction Tutorial](https://www.ethereum-blockchain-developer.com/advanced-mini-courses/gasless-onboarding-erc2612-erc4337-eip7702)** (still in progress). For in-depth explanations, theory, and a guided walkthrough, be sure to check out the full course!
+
 ## 🌌 Your Quest: The Branches of Wisdom 🌌
 
 Navigate through the branches in order to witness the full saga of Account Abstraction:
