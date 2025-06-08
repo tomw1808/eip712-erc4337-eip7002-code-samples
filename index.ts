@@ -1,7 +1,7 @@
 /**
  * Based on https://github.com/wevm/viem/tree/main/examples/account-abstraction_biconomy-bundler
  */
-import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, type GetBlockReturnType, hexToSignature, Signature, createWalletClient } from 'viem'
+import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, type GetBlockReturnType, parseSignature, type Signature, createWalletClient } from 'viem'
 // Adjust the path based on your actual project structure and output location of ABI files
 import platformCreditsFullJson from './contracts/out/PlatformCredits.sol/PlatformCredits.json';
 import myNftFullJson from './contracts/out/MyNFT.sol/MyNFT.json';
