@@ -45,19 +45,7 @@ chain: sepolia,
   transport: http(
     CANDIDE_BUNDLER,
   ),
-  paymaster: paymasterClient,
-//   paymasterContext: {
-//     mode: 'SPONSORED',
-//     calculateGasLimits: true,
-//     expiryDuration: 300,
-//     sponsorshipInfo: {
-//       webhookData: {},
-//       smartAccountInfo: {
-//         name: 'BICONOMY',
-//         version: '2.0.0',
-//       },
-//     },
-//   },
+  paymaster: paymasterClient
 })
 
 console.log("Account: ", account.address);
