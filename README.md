@@ -14,26 +14,26 @@ This repository serves as the hands-on code companion to the **[Ultimate Gasless
 
 Navigate through the branches in order to witness the full saga of Account Abstraction:
 
-### 1️⃣: `example1` - The Genesis Problem 🗿
+### 1️⃣: [`example1`](../../tree/example1) - The Genesis Problem 🗿
 *   **Mission**: Understand the core challenge. We kick off by showcasing a typical scenario: an EOA wants to interact with a contract (buy an NFT using ERC20 tokens) but is stumped if it lacks ETH for gas. This sets the stage for why AA is a game-changer.
 
-### 2️⃣: `example2` - The First Spark: ERC20 Permits ✨
+### 2️⃣: [`example2`](../../tree/example2) - The First Spark: ERC20 Permits ✨
 *   **Mission**: Overcoming the gas hurdle for token approvals. Here, we introduce the **EIP-2612 Permit** scheme. See how a user can approve an ERC20 token spend without initiating an on-chain transaction themselves, paving the way for gasless approvals.
 
-### 3️⃣: `example3` - Signed, Sealed, Delivered: EIP-712 & Permits Combined 📜✍️
+### 3️⃣: [`example3`](../../tree/example3) - Signed, Sealed, Delivered: EIP-712 & Permits Combined 📜✍️
 *   **Mission**: Elevate your DApp with gasless actions. We enhance our `MyNFT` contract with two powerful functions:
     1.  `buyNFTWithPermit()`: Leverages an ERC20 permit for the token allowance.
     2.  `buyNFTWithSignatureAndPermit()`: Goes a step further by using an **EIP-712 signature** to authorize the NFT purchase itself, *plus* an ERC20 permit for the payment. This demonstrates how users can authorize complex actions off-chain.
 
-### 4️⃣: `example4` - Enter the Arena: ERC-4337 Account Abstraction 🛡️
+### 4️⃣: [`example4`](../../tree/example4) - Enter the Arena: ERC-4337 Account Abstraction 🛡️
 *   **Mission**: Embrace the official AA standard! We finally dive into **ERC-4337**, deploying a Safe (or other ERC-4337 compatible) smart contract wallet. Witness how a UserOperation, facilitated by a Bundler and potentially a Paymaster, enables an NFT purchase.
 *   **The Catch**: Observe carefully! The `msg.sender` interacting with `MyNFT` is now the Smart Wallet contract. While this is pure ERC-4337, it might not always align with a DApp's expectation of the EOA being the direct interactor.
 
-### 5️⃣: `example5` - The Hybrid Maneuver: AA for Gas, EOA for Glory ⛽👑
+### 5️⃣: [`example5`](../../tree/example5) - The Hybrid Maneuver: AA for Gas, EOA for Glory ⛽👑
 *   **Mission**: Get the best of both worlds! We use the ERC-4337 infrastructure (Bundlers, Paymasters) for gasless transaction relaying. However, the core interaction with `MyNFT` leverages the `buyNFTWithSignatureAndPermit` function from `example3`.
 *   **The Twist**: The EOA signs the EIP-712 messages, and the smart wallet batches these calls. The NFT is ultimately minted to the EOA, showcasing how AA can serve as a powerful backend for EOA-centric experiences.
 
-### 6️⃣: `example6` - The Apex: EIP-7702 - EOA Becomes Smart (Work In Progress) 🧠⚡
+### 6️⃣: [`example6`](../../tree/example6) - The Apex: EIP-7702 - EOA Becomes Smart (Work In Progress) 🧠⚡
 *   **Mission**: Witness the bleeding edge! (This branch will explore EIP-7702 once finalized and widely supported).
 *   **The Vision**: EIP-7702 aims to allow EOAs to temporarily act like smart contracts for the duration of a transaction batch. This means the EOA itself could become the `msg.sender` for complex operations, potentially eliminating the need for separate permit signatures in many cases while still leveraging AA infrastructure. Stay tuned as this standard evolves!
 
