@@ -1,7 +1,7 @@
 /**
  * Based on https://github.com/wevm/viem/tree/main/examples/account-abstraction_biconomy-bundler
  */
-import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, getAction, type GetBlockReturnType, hexToSignature, Signature } from 'viem'
+import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, getAction, type GetBlockReturnType, hexToSignature, Signature, createWalletClient } from 'viem'
 // Adjust the path based on your actual project structure and output location of ABI files
 import platformCreditsFullJson from './contracts/out/PlatformCredits.sol/PlatformCredits.json';
 import myNftFullJson from './contracts/out/MyNFT.sol/MyNFT.json';
@@ -24,6 +24,13 @@ const client = createPublicClient({
 })
 
 const owner = privateKeyToAccount(PRIVATE_KEY as Hex)
+
+// Create a WalletClient for the EOA (owner) to be used for signing messages
+const eoaWalletClient = createWalletClient({
+  account: owner,
+  chain: sepolia,
+  transport: http(), // Transport is needed for a WalletClient
+});
 
 // Generate a Safe Smart Account so you can go to safe.global and access it from there
 const account = await toSafeSmartAccount({
@@ -118,8 +125,7 @@ if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressH
   } as const;
 
   console.log("Signing PlatformCredits Permit for EOA:", permitMessage);
-  const permitSignatureHex = await signTypedData({
-    account: owner,
+  const permitSignatureHex = await eoaWalletClient.signTypedData({
     domain: platformCreditsDomain,
     types: permitTypes,
     primaryType: 'Permit',
@@ -153,8 +159,7 @@ if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressH
   } as const;
 
   console.log("Signing MyNFT BuyNFTAction for EOA:", buyNftActionMessage);
-  const actionSignatureHex = await signTypedData({
-    account: owner,
+  const actionSignatureHex = await eoaWalletClient.signTypedData({
     domain: myNftDomain,
     types: buyNftActionTypes,
     primaryType: 'BuyNFTAction',
