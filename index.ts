@@ -1,7 +1,7 @@
 /**
  * Based on https://github.com/wevm/viem/tree/main/examples/account-abstraction_biconomy-bundler
  */
-import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, getAction, type GetBlockReturnType, hexToSignature, Signature, createWalletClient } from 'viem'
+import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, type GetBlockReturnType, hexToSignature, Signature, createWalletClient } from 'viem'
 // Adjust the path based on your actual project structure and output location of ABI files
 import platformCreditsFullJson from './contracts/out/PlatformCredits.sol/PlatformCredits.json';
 import myNftFullJson from './contracts/out/MyNFT.sol/MyNFT.json';
@@ -153,9 +153,9 @@ if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressH
   } as const;
 
   const buyNftActionMessage = {
-    user: owner.address,
+    user: owner.address as `0x${string}`,
     price: NFT_PRICE_IN_CREDITS,
-    nonce: actionNonce,
+    nonce: actionNonce as bigint,
   } as const;
 
   console.log("Signing MyNFT BuyNFTAction for EOA:", buyNftActionMessage);
