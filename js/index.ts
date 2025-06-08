@@ -1,7 +1,10 @@
 /**
  * Based on https://github.com/wevm/viem/tree/main/examples/account-abstraction_biconomy-bundler
  */
-import { http, type Hex, createPublicClient, parseEther, encodeFunctionData } from 'viem'
+import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi } from 'viem'
+// Adjust the path based on your actual project structure and output location of ABI files
+import platformCreditsFullJson from '../contracts/out/PlatformCredits.sol/PlatformCredits.json';
+import myNftFullJson from '../contracts/out/MyNFT.sol/MyNFT.json';
 import {
   createBundlerClient,
   createPaymasterClient
@@ -67,37 +70,11 @@ const PLATFORM_CREDITS_CONTRACT_ADDRESS = '0xd000f3951141a15afb7f64c34fc7273fe39
 const MY_NFT_CONTRACT_ADDRESS = '0x452b0ad1eed3498430ffe764256529e7ca2aebda' as Hex;
 const NFT_PRICE_IN_CREDITS = parseEther('100'); // Matches 100 * 10**18 in PlatformCredits and MyNFT
 
-// --- ABIs for function calls (minimal) ---
-const platformCreditsAbi = [
-  {
-    name: 'topUpCredits',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [],
-    outputs: [],
-  },
-  {
-    name: 'approve',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'spender', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    outputs: [{ name: '', type: 'bool' }],
-  },
-] as const;
-
-const myNftAbi = [
-  {
-    name: 'buyNFT',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-] as const;
-
+// --- ABIs imported from contract artifacts ---
+// We cast to Abi to ensure Viem gets the expected readonly structure if needed,
+// though often direct usage of .abi works if resolveJsonModule correctly infers types.
+const platformCreditsAbi = platformCreditsFullJson.abi as Abi;
+const myNftAbi = myNftFullJson.abi as Abi;
 
 // Ensure the placeholder addresses are updated before running
 if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressHere' || MY_NFT_CONTRACT_ADDRESS === '0xYourMyNFTContractAddressHere') {
