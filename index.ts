@@ -131,8 +131,10 @@ if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressH
     primaryType: 'Permit',
     message: permitMessage,
   });
-  const permitSignature: Signature = hexToSignature(permitSignatureHex);
-  console.log("PlatformCredits Permit Signature (v, r, s):", permitSignature.v, permitSignature.r, permitSignature.s);
+  const parsedPermitSignature = parseSignature(permitSignatureHex);
+  const permit_v = BigInt(parsedPermitSignature.yParity + 27);
+  console.log("PlatformCredits Permit Signature (r, s, yParity):", parsedPermitSignature.r, parsedPermitSignature.s, parsedPermitSignature.yParity);
+  console.log("Calculated permit_v:", permit_v);
 
 
   // --- 3. Prepare and sign EIP-712 Action Signature for MyNFT ---
@@ -165,8 +167,10 @@ if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressH
     primaryType: 'BuyNFTAction',
     message: buyNftActionMessage,
   });
-  const actionSignature: Signature = hexToSignature(actionSignatureHex);
-  console.log("MyNFT Action Signature (v, r, s):", actionSignature.v, actionSignature.r, actionSignature.s);
+  const parsedActionSignature = parseSignature(actionSignatureHex);
+  const action_v = BigInt(parsedActionSignature.yParity + 27);
+  console.log("MyNFT Action Signature (r, s, yParity):", parsedActionSignature.r, parsedActionSignature.s, parsedActionSignature.yParity);
+  console.log("Calculated action_v:", action_v);
 
   // --- 4. Construct UserOperation calls array ---
   console.log(`Attempting UserOperation: 
@@ -203,12 +207,12 @@ if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressH
         args: [
           owner.address,        // user (EOA)
           permitDeadline,       // permitDeadline
-          permitSignature.v,    // permitV
-          permitSignature.r,    // permitR
-          permitSignature.s,    // permitS
-          actionSignature.v,    // actionV
-          actionSignature.r,    // actionR
-          actionSignature.s,    // actionS
+          permit_v,             // permitV (calculated from yParity)
+          parsedPermitSignature.r, // permitR
+          parsedPermitSignature.s, // permitS
+          action_v,             // actionV (calculated from yParity)
+          parsedActionSignature.r, // actionR
+          parsedActionSignature.s, // actionS
         ],
       }),
       value: 0n,
