@@ -1,7 +1,7 @@
 /**
  * Based on https://github.com/wevm/viem/tree/main/examples/account-abstraction_biconomy-bundler
  */
-import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi } from 'viem'
+import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, getAction, type GetBlockReturnType, hexToSignature, Signature } from 'viem'
 // Adjust the path based on your actual project structure and output location of ABI files
 import platformCreditsFullJson from './contracts/out/PlatformCredits.sol/PlatformCredits.json';
 import myNftFullJson from './contracts/out/MyNFT.sol/MyNFT.json';
@@ -9,8 +9,8 @@ import {
   createBundlerClient,
   createPaymasterClient
 } from 'viem/account-abstraction'
-import { toSafeSmartAccount } from "permissionless/accounts"
-import { privateKeyToAccount } from 'viem/accounts'
+import { toSafeSmartAccount } from "permissionless/accounts"
+import { privateKeyToAccount, signTypedData } from 'viem/accounts'
 import { sepolia } from 'viem/chains'
 
 const PRIVATE_KEY="0x36faa8ac683b2ac54b2cb113b345107b790191014223478d786ed0c0786eedd9"; // == address: 0xdead4d073eb5a47ccae500a8bc01d1f473c60aa1
@@ -66,47 +66,170 @@ const myNftAbi = myNftFullJson.abi as Abi;
 
 // Ensure the placeholder addresses are updated before running
 if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressHere' || MY_NFT_CONTRACT_ADDRESS === '0xYourMyNFTContractAddressHere') {
-  console.error("Please update PLATFORM_CREDITS_CONTRACT_ADDRESS and MY_NFT_CONTRACT_ADDRESS in js/index.ts with your deployed contract addresses.");
+  console.error("Please update PLATFORM_CREDITS_CONTRACT_ADDRESS and MY_NFT_CONTRACT_ADDRESS in index.ts with your deployed contract addresses.");
 } else {
-  console.log(`Attempting UserOperation: 1. topUpCredits, 2. approve NFT spend, 3. buyNFT`);
+  console.log(`EOA (NFT Recipient & Signer): ${owner.address}`);
+  console.log(`Smart Account (Relayer): ${account.address}`);
   console.log(`PlatformCredits: ${PLATFORM_CREDITS_CONTRACT_ADDRESS}, MyNFT: ${MY_NFT_CONTRACT_ADDRESS}`);
-  console.log(`NFT Price (for approval): ${NFT_PRICE_IN_CREDITS.toString()} credits`);
 
-  const hash = await bundlerClient.sendUserOperation({
-    calls: [
-      // 1. Call topUpCredits() on PlatformCredits contract
-      {
-        to: PLATFORM_CREDITS_CONTRACT_ADDRESS,
-        data: encodeFunctionData({
-          abi: platformCreditsAbi,
-          functionName: 'topUpCredits',
-        }),
-        value: 0n, // No ETH value sent for this call
-      },
-      // 2. Call approve(MyNFT_ADDRESS, NFT_PRICE_IN_CREDITS) on PlatformCredits contract
-      {
-        to: PLATFORM_CREDITS_CONTRACT_ADDRESS,
-        data: encodeFunctionData({
-          abi: platformCreditsAbi,
-          functionName: 'approve',
-          args: [MY_NFT_CONTRACT_ADDRESS, NFT_PRICE_IN_CREDITS],
-        }),
-        value: 0n, // No ETH value sent for this call
-      },
-      // 3. Call buyNFT() on MyNFT contract
-      {
-        to: MY_NFT_CONTRACT_ADDRESS,
-        data: encodeFunctionData({
-          abi: myNftAbi,
-          functionName: 'buyNFT',
-        }),
-        value: 0n, // No ETH value sent for this call
-      },
-    ],
+  // --- 1. Fetch current nonces for the EOA ---
+  const permitNonce = await client.readContract({
+    address: PLATFORM_CREDITS_CONTRACT_ADDRESS,
+    abi: platformCreditsAbi,
+    functionName: 'nonces',
+    args: [owner.address],
   });
-  console.log("UserOperation hash:", hash);
+  console.log(`EOA's current permit nonce for PlatformCredits: ${permitNonce}`);
+
+  const actionNonce = await client.readContract({
+    address: MY_NFT_CONTRACT_ADDRESS,
+    abi: myNftAbi,
+    functionName: 'actionNonces',
+    args: [owner.address],
+  });
+  console.log(`EOA's current action nonce for MyNFT: ${actionNonce}`);
+
+  // --- 2. Prepare and sign ERC2612 Permit for PlatformCredits ---
+  const permitDeadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour from now
+
+  const platformCreditsDomain = {
+    name: 'PlatformCredits', // Matches ERC20Permit constructor argument
+    version: '1', // Default version for OZ ERC20Permit
+    chainId: sepolia.id,
+    verifyingContract: PLATFORM_CREDITS_CONTRACT_ADDRESS,
+  } as const;
+
+  const permitTypes = {
+    Permit: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'nonce', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' },
+    ],
+  } as const;
+
+  const permitMessage = {
+    owner: owner.address,
+    spender: MY_NFT_CONTRACT_ADDRESS,
+    value: NFT_PRICE_IN_CREDITS,
+    nonce: permitNonce,
+    deadline: permitDeadline,
+  } as const;
+
+  console.log("Signing PlatformCredits Permit for EOA:", permitMessage);
+  const permitSignatureHex = await signTypedData({
+    account: owner,
+    domain: platformCreditsDomain,
+    types: permitTypes,
+    primaryType: 'Permit',
+    message: permitMessage,
+  });
+  const permitSignature: Signature = hexToSignature(permitSignatureHex);
+  console.log("PlatformCredits Permit Signature (v, r, s):", permitSignature.v, permitSignature.r, permitSignature.s);
+
+
+  // --- 3. Prepare and sign EIP-712 Action Signature for MyNFT ---
+  // BUY_NFT_ACTION_TYPEHASH = keccak256("BuyNFTAction(address user,uint256 price,uint256 nonce)")
+  const myNftDomain = {
+    name: 'MyNFT', // Matches EIP712 constructor first argument in MyNFT.sol
+    version: '1', // Matches EIP712 constructor second argument in MyNFT.sol
+    chainId: sepolia.id,
+    verifyingContract: MY_NFT_CONTRACT_ADDRESS,
+  } as const;
+
+  const buyNftActionTypes = {
+    BuyNFTAction: [
+      { name: 'user', type: 'address' },
+      { name: 'price', type: 'uint256' },
+      { name: 'nonce', type: 'uint256' },
+    ],
+  } as const;
+
+  const buyNftActionMessage = {
+    user: owner.address,
+    price: NFT_PRICE_IN_CREDITS,
+    nonce: actionNonce,
+  } as const;
+
+  console.log("Signing MyNFT BuyNFTAction for EOA:", buyNftActionMessage);
+  const actionSignatureHex = await signTypedData({
+    account: owner,
+    domain: myNftDomain,
+    types: buyNftActionTypes,
+    primaryType: 'BuyNFTAction',
+    message: buyNftActionMessage,
+  });
+  const actionSignature: Signature = hexToSignature(actionSignatureHex);
+  console.log("MyNFT Action Signature (v, r, s):", actionSignature.v, actionSignature.r, actionSignature.s);
+
+  // --- 4. Construct UserOperation calls array ---
+  console.log(`Attempting UserOperation: 
+    1. SmartAccount calls topUpCredits() for itself.
+    2. SmartAccount transfers ${NFT_PRICE_IN_CREDITS.toString()} CRED to EOA ${owner.address}.
+    3. SmartAccount calls buyNFTWithSignatureAndPermit() for EOA ${owner.address} using EOA's signatures.`);
+
+  const userOpCalls = [
+    // 1. Smart Account calls topUpCredits() for itself
+    {
+      to: PLATFORM_CREDITS_CONTRACT_ADDRESS,
+      data: encodeFunctionData({
+        abi: platformCreditsAbi,
+        functionName: 'topUpCredits',
+      }),
+      value: 0n,
+    },
+    // 2. Smart Account transfers credits to the EOA
+    {
+      to: PLATFORM_CREDITS_CONTRACT_ADDRESS,
+      data: encodeFunctionData({
+        abi: platformCreditsAbi,
+        functionName: 'transfer',
+        args: [owner.address, NFT_PRICE_IN_CREDITS],
+      }),
+      value: 0n,
+    },
+    // 3. Smart Account calls buyNFTWithSignatureAndPermit for the EOA
+    {
+      to: MY_NFT_CONTRACT_ADDRESS,
+      data: encodeFunctionData({
+        abi: myNftAbi,
+        functionName: 'buyNFTWithSignatureAndPermit',
+        args: [
+          owner.address,        // user (EOA)
+          permitDeadline,       // permitDeadline
+          permitSignature.v,    // permitV
+          permitSignature.r,    // permitR
+          permitSignature.s,    // permitS
+          actionSignature.v,    // actionV
+          actionSignature.r,    // actionR
+          actionSignature.s,    // actionS
+        ],
+      }),
+      value: 0n,
+    },
+  ];
+
+  const userOpHash = await bundlerClient.sendUserOperation({
+    calls: userOpCalls,
+  });
+  console.log("UserOperation hash:", userOpHash);
 
   console.log(`Waiting for transaction receipt...`);
-  const receipt = await client.waitForTransactionReceipt({ hash });
+  const receipt = await client.waitForTransactionReceipt({ hash: userOpHash });
   console.log("Transaction Receipt:", receipt);
+
+  if (receipt.status === 'success') {
+    console.log(`NFT potentially minted! Check EOA ${owner.address} balance on an explorer.`);
+    // You might want to query the NFT balance of owner.address here
+    const nftBalance = await client.readContract({
+        address: MY_NFT_CONTRACT_ADDRESS,
+        abi: myNftAbi,
+        functionName: 'balanceOf',
+        args: [owner.address]
+    });
+    console.log(`EOA's NFT balance for ${MY_NFT_CONTRACT_ADDRESS}: ${nftBalance}`);
+  } else {
+    console.error("UserOperation failed or was reverted.");
+  }
 }
