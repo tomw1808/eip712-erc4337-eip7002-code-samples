@@ -110,10 +110,10 @@ if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressH
   } as const;
 
   const permitMessage = {
-    owner: owner.address,
-    spender: MY_NFT_CONTRACT_ADDRESS,
+    owner: owner.address as `0x${string}`,
+    spender: MY_NFT_CONTRACT_ADDRESS as `0x${string}`,
     value: NFT_PRICE_IN_CREDITS,
-    nonce: permitNonce,
+    nonce: permitNonce as bigint,
     deadline: permitDeadline,
   } as const;
 
