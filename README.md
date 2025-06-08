@@ -1,4 +1,4 @@
-# 🔥 THE ULTIMATE ACCOUNT ABSTRACTION ODYSSEY 🔥
+# 🔥 THE ULTIMATE ACCOUNT ABSTRACTION GUIDE 🔥
 
 🚀 **Unlock the Future of Ethereum Wallets & User Experience!** 🚀
 
