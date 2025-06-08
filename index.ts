@@ -1,7 +1,7 @@
 /**
  * Based on https://github.com/wevm/viem/tree/main/examples/account-abstraction_biconomy-bundler
  */
-import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, type GetBlockReturnType, parseSignature, type Signature, createWalletClient } from 'viem'
+import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, parseSignature, createWalletClient } from 'viem'
 // Adjust the path based on your actual project structure and output location of ABI files
 import platformCreditsFullJson from './contracts/out/PlatformCredits.sol/PlatformCredits.json';
 import myNftFullJson from './contracts/out/MyNFT.sol/MyNFT.json';
@@ -10,7 +10,7 @@ import {
   createPaymasterClient
 } from 'viem/account-abstraction'
 import { toSafeSmartAccount } from "permissionless/accounts"
-import { privateKeyToAccount, signTypedData } from 'viem/accounts'
+import { privateKeyToAccount } from 'viem/accounts'
 import { sepolia } from 'viem/chains'
 
 const PRIVATE_KEY="0x36faa8ac683b2ac54b2cb113b345107b790191014223478d786ed0c0786eedd9"; // == address: 0xdead4d073eb5a47ccae500a8bc01d1f473c60aa1
@@ -219,16 +219,22 @@ if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressH
     },
   ];
 
+  // e.g. https://sepolia.etherscan.io/tx/0x10e5366e5bb111cba3054258eeec009852de46d8cd5e009790e90f8f46b979f5
+
   const userOpHash = await bundlerClient.sendUserOperation({
     calls: userOpCalls,
   });
   console.log("UserOperation hash:", userOpHash);
 
+  
+  
+  
   console.log(`Waiting for transaction receipt...`);
-  const receipt = await client.waitForTransactionReceipt({ hash: userOpHash });
+  const receipt = await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash}) 
+  // const receipt = await client.waitForTransactionReceipt({ hash: userOpHash });
   console.log("Transaction Receipt:", receipt);
 
-  if (receipt.status === 'success') {
+  if (receipt.success) {
     console.log(`NFT potentially minted! Check EOA ${owner.address} balance on an explorer.`);
     // You might want to query the NFT balance of owner.address here
     const nftBalance = await client.readContract({
