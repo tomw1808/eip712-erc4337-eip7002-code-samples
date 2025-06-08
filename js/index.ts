@@ -59,13 +59,87 @@ chain: sepolia,
 
 console.log("Account: ", account.address);
 
-const hash = await bundlerClient.sendUserOperation({
-  calls: [
-    // send 0.000001 ETH to self
-    {
-      to: account.address,
-      value: parseEther('0.000001'),
-    },
-  ],
-})
-console.log(hash);
+// --- Contract Addresses and Constants ---
+// !!! IMPORTANT: Replace these with your deployed contract addresses on Sepolia !!!
+const PLATFORM_CREDITS_CONTRACT_ADDRESS = '0xYourPlatformCreditsContractAddressHere' as Hex;
+const MY_NFT_CONTRACT_ADDRESS = '0xYourMyNFTContractAddressHere' as Hex;
+const NFT_PRICE_IN_CREDITS = parseEther('100'); // Matches 100 * 10**18 in PlatformCredits and MyNFT
+
+// --- ABIs for function calls (minimal) ---
+const platformCreditsAbi = [
+  {
+    name: 'topUpCredits',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [],
+  },
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+] as const;
+
+const myNftAbi = [
+  {
+    name: 'buyNFT',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
+
+// Ensure the placeholder addresses are updated before running
+if (PLATFORM_CREDITS_CONTRACT_ADDRESS === '0xYourPlatformCreditsContractAddressHere' || MY_NFT_CONTRACT_ADDRESS === '0xYourMyNFTContractAddressHere') {
+  console.error("Please update PLATFORM_CREDITS_CONTRACT_ADDRESS and MY_NFT_CONTRACT_ADDRESS in js/index.ts with your deployed contract addresses.");
+} else {
+  console.log(`Attempting UserOperation: 1. topUpCredits, 2. approve NFT spend, 3. buyNFT`);
+  console.log(`PlatformCredits: ${PLATFORM_CREDITS_CONTRACT_ADDRESS}, MyNFT: ${MY_NFT_CONTRACT_ADDRESS}`);
+  console.log(`NFT Price (for approval): ${NFT_PRICE_IN_CREDITS.toString()} credits`);
+
+  const hash = await bundlerClient.sendUserOperation({
+    calls: [
+      // 1. Call topUpCredits() on PlatformCredits contract
+      {
+        to: PLATFORM_CREDITS_CONTRACT_ADDRESS,
+        data: encodeFunctionData({
+          abi: platformCreditsAbi,
+          functionName: 'topUpCredits',
+        }),
+        value: 0n, // No ETH value sent for this call
+      },
+      // 2. Call approve(MyNFT_ADDRESS, NFT_PRICE_IN_CREDITS) on PlatformCredits contract
+      {
+        to: PLATFORM_CREDITS_CONTRACT_ADDRESS,
+        data: encodeFunctionData({
+          abi: platformCreditsAbi,
+          functionName: 'approve',
+          args: [MY_NFT_CONTRACT_ADDRESS, NFT_PRICE_IN_CREDITS],
+        }),
+        value: 0n, // No ETH value sent for this call
+      },
+      // 3. Call buyNFT() on MyNFT contract
+      {
+        to: MY_NFT_CONTRACT_ADDRESS,
+        data: encodeFunctionData({
+          abi: myNftAbi,
+          functionName: 'buyNFT',
+        }),
+        value: 0n, // No ETH value sent for this call
+      },
+    ],
+  });
+  console.log("UserOperation hash:", hash);
+
+  console.log(`Waiting for transaction receipt...`);
+  const receipt = await client.waitForTransactionReceipt({ hash });
+  console.log("Transaction Receipt:", receipt);
+}
