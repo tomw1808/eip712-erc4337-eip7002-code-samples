@@ -109,7 +109,7 @@ contract PlatformCreditsTest is Test {
     }
 
     function testTopUpCredits() public {
-        uint256 targetBalance = PlatformCredits.FAUCET_TARGET_BALANCE;
+        uint256 targetBalance = credits.FAUCET_TARGET_BALANCE();
 
         // Scenario 1: User2 has 0 credits, tops up to targetBalance
         vm.prank(user2);
