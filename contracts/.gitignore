@@ -1,6 +1,8 @@
 # Compiler files
 cache/
-out/
+
+# on purpose leaving the out files here to get the ABI
+# out/
 
 # Ignores development broadcast logs
 !/broadcast
