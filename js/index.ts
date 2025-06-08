@@ -60,9 +60,11 @@ chain: sepolia,
 console.log("Account: ", account.address);
 
 // --- Contract Addresses and Constants ---
-// !!! IMPORTANT: Replace these with your deployed contract addresses on Sepolia !!!
-const PLATFORM_CREDITS_CONTRACT_ADDRESS = '0xYourPlatformCreditsContractAddressHere' as Hex;
-const MY_NFT_CONTRACT_ADDRESS = '0xYourMyNFTContractAddressHere' as Hex;
+// The contracts are also verified, so you can try them yourself!
+// https://sepolia.etherscan.io/address/0xd000f3951141a15afb7f64c34fc7273fe39d9326#code
+// https://sepolia.etherscan.io/address/0x452b0ad1eed3498430ffe764256529e7ca2aebda#code
+const PLATFORM_CREDITS_CONTRACT_ADDRESS = '0xd000f3951141a15afb7f64c34fc7273fe39d9326' as Hex; 
+const MY_NFT_CONTRACT_ADDRESS = '0x452b0ad1eed3498430ffe764256529e7ca2aebda' as Hex;
 const NFT_PRICE_IN_CREDITS = parseEther('100'); // Matches 100 * 10**18 in PlatformCredits and MyNFT
 
 // --- ABIs for function calls (minimal) ---
