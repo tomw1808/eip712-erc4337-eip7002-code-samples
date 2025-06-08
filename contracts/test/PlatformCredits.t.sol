@@ -8,6 +8,7 @@ contract PlatformCreditsTest is Test {
     PlatformCredits public credits;
     address owner = address(this); // Test contract itself can be the owner
     address user1 = address(0x1); // Used for grantCredits tests
+    address user2 = address(0x4); // Used for topUpCredits tests
     address spender = address(0x2); // Generic spender for permit test
 
     // Private key for Anvil account #2 (0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199)
@@ -105,5 +106,43 @@ contract PlatformCreditsTest is Test {
         assertEq(credits.balanceOf(permitHolderAddress), initialBalance - permitAmount, "Permit holder balance should decrease");
         assertEq(credits.balanceOf(recipient), permitAmount, "Recipient balance should increase after transferFrom");
         assertEq(credits.allowance(permitHolderAddress, spender), 0, "Allowance should be consumed after transferFrom");
+    }
+
+    function testTopUpCredits() public {
+        uint256 targetBalance = PlatformCredits.FAUCET_TARGET_BALANCE;
+
+        // Scenario 1: User2 has 0 credits, tops up to targetBalance
+        vm.prank(user2);
+        credits.topUpCredits();
+        assertEq(credits.balanceOf(user2), targetBalance, "User2 balance should be targetBalance after first topUp");
+
+        // Scenario 2: User3 starts with partial credits and tops up.
+        address user3 = address(0x5);
+        uint256 partialAmount = targetBalance / 2;
+        vm.prank(owner);
+        credits.grantCredits(user3, partialAmount); // Grant 50 credits
+        assertEq(credits.balanceOf(user3), partialAmount, "User3 initial partial balance incorrect");
+
+        vm.prank(user3);
+        credits.topUpCredits();
+        assertEq(credits.balanceOf(user3), targetBalance, "User3 balance should be targetBalance after topping up from partial");
+
+        // Scenario 3: User2 (already at targetBalance) attempts topUp, balance should not change.
+        uint256 balanceBeforeAttemptedTopUp = credits.balanceOf(user2);
+        assertEq(balanceBeforeAttemptedTopUp, targetBalance, "User2 should be at target balance before this check");
+        vm.prank(user2);
+        credits.topUpCredits();
+        assertEq(credits.balanceOf(user2), targetBalance, "User2 balance should remain targetBalance if already full");
+
+        // Scenario 4: User4 has more than targetBalance, topUp should do nothing.
+        address user4 = address(0x6);
+        uint256 excessAmount = targetBalance + (50 * 10**18); // e.g., 150 credits
+        vm.prank(owner);
+        credits.grantCredits(user4, excessAmount);
+        assertEq(credits.balanceOf(user4), excessAmount, "User4 initial excess balance incorrect");
+
+        vm.prank(user4);
+        credits.topUpCredits();
+        assertEq(credits.balanceOf(user4), excessAmount, "User4 balance should remain excessAmount if already over target");
     }
 }

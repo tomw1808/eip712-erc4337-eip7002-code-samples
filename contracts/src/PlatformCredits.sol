@@ -12,6 +12,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * Implements ERC2612 permit functionality.
  */
 contract PlatformCredits is ERC20, ERC20Permit, Ownable {
+    uint256 public constant FAUCET_TARGET_BALANCE = 100 * 10**18;
+
     // Assuming 18 decimals for credits, like ETH. Adjust if needed.
     constructor(address initialOwner)
         ERC20("PlatformCredits", "CRED")
@@ -25,6 +27,21 @@ contract PlatformCredits is ERC20, ERC20Permit, Ownable {
      */
     function grantCredits(address to, uint256 amount) public onlyOwner {
         _mint(to, amount); // Internally, granting credits is minting tokens
+    }
+
+    /**
+     * @dev Tops up the caller's balance to FAUCET_TARGET_BALANCE.
+     * If the caller's balance is already at or above FAUCET_TARGET_BALANCE,
+     * this function does nothing.
+     */
+    function topUpCredits() public {
+        address caller = msg.sender;
+        uint256 currentBalance = balanceOf(caller);
+
+        if (currentBalance < FAUCET_TARGET_BALANCE) {
+            uint256 amountToMint = FAUCET_TARGET_BALANCE - currentBalance;
+            _mint(caller, amountToMint);
+        }
     }
 }
  

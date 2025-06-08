@@ -1,7 +1,7 @@
 /**
  * Based on https://github.com/wevm/viem/tree/main/examples/account-abstraction_biconomy-bundler
  */
-import { http, type Hex, createPublicClient, parseEther } from 'viem'
+import { http, type Hex, createPublicClient, parseEther, encodeFunctionData } from 'viem'
 import {
   createBundlerClient,
   createPaymasterClient
