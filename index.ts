@@ -1,12 +1,21 @@
-import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, parseSignature, createWalletClient, type PublicClient, type WalletClient, type SendTransactionParameters } from 'viem';
+import * as dotenv from 'dotenv';
+import {
+    Simple7702Account,
+    createAndSignEip7702DelegationAuthorization,
+    CandidePaymaster,
+    MetaTransaction,
+} from "abstractionkit";
+import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, createWalletClient, type PublicClient } from 'viem';
 import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 
-// ABIs - Adjust path if your directory structure for ABIs is different
+// ABIs
 import platformCreditsFullJson from './contracts/out/PlatformCredits.sol/PlatformCredits.json';
 import myNftFullJson from './contracts/out/MyNFT.sol/MyNFT.json';
 
 const PRIVATE_KEY = "0x36faa8ac683b2ac54b2cb113b345107b790191014223478d786ed0c0786eedd9"; // EOA
+const CANDIDE_BUNDLER_URL = "https://api.candide.dev/bundler/v3/sepolia/5bfc7f3150f9c9834d6b024261680726";
+const CANDIDE_PAYMASTER_URL = "https://api.candide.dev/paymaster/v3/sepolia/5bfc7f3150f9c9834d6b024261680726";
 const JSON_RPC_NODE_PROVIDER_URL = sepolia.rpcUrls.default.http[0];
 
 const PLATFORM_CREDITS_CONTRACT_ADDRESS = '0xd000f3951141a15afb7f64c34fc7273fe39d9326' as Hex;
@@ -16,134 +25,152 @@ const NFT_PRICE_IN_CREDITS = parseEther('100');
 const platformCreditsAbi = platformCreditsFullJson.abi as Abi;
 const myNftAbi = myNftFullJson.abi as Abi;
 
-// Viem clients
+// Viem public client (can be used by abstractionkit or for reads)
 const publicClient: PublicClient = createPublicClient({
     chain: sepolia,
     transport: http(JSON_RPC_NODE_PROVIDER_URL),
 });
 
-const eoaSignerAccount: PrivateKeyAccount = privateKeyToAccount(PRIVATE_KEY as Hex);
+// EOA that will authorize the Simple7702Account
+const eoaDelegatorAccount: PrivateKeyAccount = privateKeyToAccount(PRIVATE_KEY as Hex);
 
-// This WalletClient is for the EOA that will authorize and send the EIP-7702 transaction
-const eoaWalletClient: WalletClient = createWalletClient({
-    account: eoaSignerAccount,
-    chain: sepolia,
-    transport: http(JSON_RPC_NODE_PROVIDER_URL),
-});
+async function runBundledEip7702Transaction() {
+    dotenv.config();
 
-async function runViemEip7702Transaction() {
-    console.log(`EOA (Signer & Transaction Sender): ${eoaSignerAccount.address}`);
-    console.log(`Target MyNFT Contract: ${MY_NFT_CONTRACT_ADDRESS}`);
-    console.log(`PlatformCredits Contract: ${PLATFORM_CREDITS_CONTRACT_ADDRESS}`);
-    console.log("--- This script demonstrates native EIP-7702 using Viem ---");
-    console.log("--- It does NOT use ERC-4337 bundlers/paymasters. ---");
+    const chainId = BigInt(sepolia.id);
+    const eoaDelegatorPrivateKey = PRIVATE_KEY;
+    const eoaDelegatorPublicAddress = eoaDelegatorAccount.address;
 
-    // --- Prepare EIP-2612 Permit for PlatformCredits ---
-    const permitNonce = await publicClient.readContract({
-        address: PLATFORM_CREDITS_CONTRACT_ADDRESS,
-        abi: platformCreditsAbi,
-        functionName: 'nonces',
-        args: [eoaSignerAccount.address],
-    });
-    const permitDeadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
+    console.log(`EOA Delegator: ${eoaDelegatorPublicAddress}`);
 
-    const platformCreditsDomain = { name: 'PlatformCredits', version: '1', chainId: BigInt(sepolia.id), verifyingContract: PLATFORM_CREDITS_CONTRACT_ADDRESS } as const;
-    const permitTypes = { Permit: [ { name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' } ] } as const;
-    const permitMessage = { owner: eoaSignerAccount.address, spender: MY_NFT_CONTRACT_ADDRESS, value: NFT_PRICE_IN_CREDITS, nonce: permitNonce as bigint, deadline: permitDeadline } as const;
-    
-    const permitSignatureHex = await eoaWalletClient.signTypedData({ domain: platformCreditsDomain, types: permitTypes, primaryType: 'Permit', message: permitMessage });
-    const parsedPermitSignature = parseSignature(permitSignatureHex);
-    // MyNFT.sol expects uint8 v (27 or 28). Viem's parseSignature.v is already this value for EIP-712.
-    const permit_v = parsedPermitSignature.v; 
-    console.log("Signed PlatformCredits Permit.");
+    // Initialize Simple7702Account with the EOA's address
+    const simple7702SmartAccount = new Simple7702Account(eoaDelegatorPublicAddress);
+    const smartAccountAddress = simple7702SmartAccount.accountAddress;
+    console.log(`Simple7702 Smart Account Address (derived by abstractionkit): ${smartAccountAddress}`);
+    console.log("--- This script uses AbstractionKit to send an EIP-7702 UserOperation via ERC-4337 ---");
+    console.log(`--- The Simple7702 Account (${smartAccountAddress}) will perform actions. ---`);
 
-    // --- Prepare EIP-712 Action Signature for MyNFT ---
-    const actionNonce = await publicClient.readContract({
-        address: MY_NFT_CONTRACT_ADDRESS,
-        abi: myNftAbi,
-        functionName: 'actionNonces',
-        args: [eoaSignerAccount.address],
-    });
+    // --- Define the batched transactions ---
+    // 1. Smart Account tops up its own credits
+    // 2. Smart Account approves MyNFT contract to spend its credits
+    // 3. Smart Account buys an NFT (NFT will be owned by the Smart Account)
+    const transactions: MetaTransaction[] = [
+        {
+            to: PLATFORM_CREDITS_CONTRACT_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+                abi: platformCreditsAbi,
+                functionName: 'topUpCredits',
+            }),
+        },
+        {
+            to: PLATFORM_CREDITS_CONTRACT_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+                abi: platformCreditsAbi,
+                functionName: 'approve',
+                args: [MY_NFT_CONTRACT_ADDRESS, NFT_PRICE_IN_CREDITS],
+            }),
+        },
+        {
+            to: MY_NFT_CONTRACT_ADDRESS,
+            value: 0n,
+            data: encodeFunctionData({
+                abi: myNftAbi,
+                functionName: 'buyNFT',
+            }),
+        }
+    ];
 
-    const myNftDomain = { name: 'MyNFT', version: '1', chainId: BigInt(sepolia.id), verifyingContract: MY_NFT_CONTRACT_ADDRESS } as const;
-    const buyNftActionTypes = { BuyNFTAction: [ { name: 'user', type: 'address' }, { name: 'price', type: 'uint256' }, { name: 'nonce', type: 'uint256' } ] } as const;
-    const buyNftActionMessage = { user: eoaSignerAccount.address, price: NFT_PRICE_IN_CREDITS, nonce: actionNonce as bigint } as const;
+    console.log("Preparing UserOperation for batch: topUpCredits, approve, buyNFT");
 
-    const actionSignatureHex = await eoaWalletClient.signTypedData({ domain: myNftDomain, types: buyNftActionTypes, primaryType: 'BuyNFTAction', message: buyNftActionMessage });
-    const parsedActionSignature = parseSignature(actionSignatureHex);
-    const action_v = parsedActionSignature.v;
-    console.log("Signed MyNFT BuyNFTAction.");
+    // --- Create UserOperation using abstractionkit ---
+    let userOperation = await simple7702SmartAccount.createUserOperation(
+        transactions,
+        JSON_RPC_NODE_PROVIDER_URL, // For nonce and gas prices
+        CANDIDE_BUNDLER_URL,      // For gas estimation
+        {
+            eip7702Auth: {
+                chainId: chainId,
+            }
+        }
+    );
 
-    // --- Prepare EIP-7702 Authorization ---
-    // The EOA authorizes itself to act as the MyNFT contract.
-    // `executor: 'self'` is used because the EOA (signer of authorization) is also sending the transaction.
-    const eip7702Authorization = await eoaWalletClient.signAuthorization({
-        account: eoaSignerAccount, // The EOA being "upgraded"
-        contractAddress: MY_NFT_CONTRACT_ADDRESS, // The EOA will act with this contract's code
-        executor: 'self', // Important: EOA signs auth AND sends tx
-        // chainId, nonce can be omitted, viem infers them.
-    });
-    console.log("Signed EIP-7702 Authorization.");
+    // Sign the EIP-7702 delegation authorization
+    const rawPrivateKeyForAbstractionKit = eoaDelegatorPrivateKey.startsWith('0x')
+        ? eoaDelegatorPrivateKey.substring(2)
+        : eoaDelegatorPrivateKey;
 
-    // --- Encode call data for buyNFTWithSignatureAndPermit ---
-    const callData = encodeFunctionData({
-        abi: myNftAbi,
-        functionName: 'buyNFTWithSignatureAndPermit',
-        args: [
-            eoaSignerAccount.address,
-            permitDeadline,
-            Number(permit_v), // Solidity expects uint8
-            parsedPermitSignature.r,
-            parsedPermitSignature.s,
-            Number(action_v), // Solidity expects uint8
-            parsedActionSignature.r,
-            parsedActionSignature.s,
-        ],
-    });
+    userOperation.eip7702Auth = createAndSignEip7702DelegationAuthorization(
+        BigInt(userOperation.eip7702Auth!.chainId!),
+        userOperation.eip7702Auth!.address!, // This is the EOA address
+        BigInt(userOperation.eip7702Auth!.nonce!),
+        rawPrivateKeyForAbstractionKit
+    );
+    console.log("EIP-7702 Delegation Authorization signed.");
 
-    // --- Send the EIP-7702 Transaction ---
-    // The `to` address is the EOA itself.
-    // The `authorizationList` makes this an EIP-7702 transaction (type 0x04).
-    console.log(`Sending EIP-7702 transaction to EOA ${eoaSignerAccount.address} to execute MyNFT.buyNFTWithSignatureAndPermit...`);
-    
-    // Explicitly type txParams to include authorizationList
-    const txParams: SendTransactionParameters<typeof sepolia, PrivateKeyAccount> & { authorizationList?: any[] } = {
-        account: eoaSignerAccount, // The account sending the transaction
-        to: eoaSignerAccount.address, // For EIP-7702, tx is sent to the EOA
-        data: callData,
-        authorizationList: [eip7702Authorization],
-        chain: sepolia, // ensure chain is specified
-        // gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas might be needed depending on network
-    };
+    // Use Candide Paymaster for sponsorship (optional)
+    const paymaster = new CandidePaymaster(CANDIDE_PAYMASTER_URL);
+    const sponsorshipPolicyId = process.env.SPONSORSHIP_POLICY_ID || "";
 
-    const txHash = await eoaWalletClient.sendTransaction(txParams);
-    console.log(`EIP-7702 Transaction sent. Hash: ${txHash}`);
+    let [paymasterUserOperation, ] = await paymaster.createSponsorPaymasterUserOperation(
+        userOperation,
+        CANDIDE_BUNDLER_URL,
+        sponsorshipPolicyId
+    );
+    userOperation = paymasterUserOperation;
+    console.log("Paymaster data added (if sponsorship successful).");
 
-    console.log("Waiting for transaction receipt...");
-    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-    console.log("Transaction Receipt:", receipt);
+    // Sign the UserOperation with the EOA's key (as required by Simple7702Account)
+    userOperation.signature = simple7702SmartAccount.signUserOperation(
+        userOperation,
+        rawPrivateKeyForAbstractionKit,
+        chainId
+    );
+    console.log("UserOperation signed.");
 
-    if (receipt.status === 'success') {
-        console.log(`EIP-7702 transaction successful! NFT should be minted to ${eoaSignerAccount.address}.`);
+    console.log("Sending UserOperation:", JSON.stringify(userOperation, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value, 2));
+
+    let sendUserOperationResponse = await simple7702SmartAccount.sendUserOperation(
+        userOperation, CANDIDE_BUNDLER_URL
+    );
+
+    console.log("UserOperation sent! Waiting for inclusion...");
+    console.log("UserOp Hash:", sendUserOperationResponse.userOperationHash);
+
+    let userOperationReceiptResult = await sendUserOperationResponse.included();
+
+    console.log("UserOperation receipt received.");
+    console.log(JSON.stringify(userOperationReceiptResult, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value, 2));
+
+    if (userOperationReceiptResult.success) {
+        console.log(`EIP-7702 UserOperation successful! Transaction hash: ${userOperationReceiptResult.receipt.transactionHash}`);
+        // Check NFT balance of the Smart Account
         const nftBalance = await publicClient.readContract({
             address: MY_NFT_CONTRACT_ADDRESS,
             abi: myNftAbi,
             functionName: 'balanceOf',
-            args: [eoaSignerAccount.address]
+            args: [smartAccountAddress as Hex] // Smart Account is the owner
         });
-        console.log(`EOA's NFT balance for ${MY_NFT_CONTRACT_ADDRESS}: ${nftBalance}`);
-    } else {
-        console.error("EIP-7702 transaction failed or was reverted.");
-    }
+        console.log(`Simple7702 Smart Account's NFT balance for ${MY_NFT_CONTRACT_ADDRESS}: ${nftBalance}`);
 
-    console.log("--- Note on batching with native EIP-7702: ---");
-    console.log("To batch multiple distinct calls (e.g., topUpCredits then buyNFT),");
-    console.log("the EOA would typically designate a 'batcher' smart contract via EIP-7702.");
-    console.log("This example focuses on a single action for clarity.");
+        const smartAccountCredits = await publicClient.readContract({
+            address: PLATFORM_CREDITS_CONTRACT_ADDRESS,
+            abi: platformCreditsAbi,
+            functionName: 'balanceOf',
+            args: [smartAccountAddress as Hex]
+        });
+        console.log(`Simple7702 Smart Account's CREDITS balance: ${smartAccountCredits}`);
+
+    } else {
+        console.error("UserOperation execution failed. Reason:", userOperationReceiptResult.reason);
+    }
 }
 
 async function main() {
-    await runViemEip7702Transaction();
+    await runBundledEip7702Transaction();
 }
 
 main().catch((error) => {
