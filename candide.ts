@@ -1,13 +1,12 @@
 import * as dotenv from 'dotenv';
 import {
     Simple7702Account,
-    createAndSignEip7702DelegationAuthorization,
     CandidePaymaster,
     MetaTransaction,
 } from "abstractionkit";
 // abstractionkit may rely on ethers v5.
 // Ensure your project's ethers version is compatible or install v5 specifically for this.
-import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, parseSignature, createWalletClient, type PublicClient, type WalletClient } from 'viem';
+import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, parseSignature, createWalletClient, type PublicClient, type WalletClient, toBeHex } from 'viem';
 import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 
@@ -126,15 +125,30 @@ export async function runEip7702Transaction() {
         }
     );
     
-    const rawPrivateKeyForAbstractionKit = eoaDelegatorPrivateKey.startsWith('0x') ? eoaDelegatorPrivateKey.substring(2) : eoaDelegatorPrivateKey;
+    // The userOperation.eip7702Auth object is already partially populated by createUserOperation
+    // with chainId, address (EOA's address), and nonce (EOA's nonce for delegation).
+    // We use these to call viem's signAuthorization.
 
-    userOperation.eip7702Auth = createAndSignEip7702DelegationAuthorization(
-        BigInt(userOperation.eip7702Auth!.chainId!), 
-        userOperation.eip7702Auth!.address!,
-        BigInt(userOperation.eip7702Auth!.nonce!),
-        rawPrivateKeyForAbstractionKit 
-    );
+    const delegationChainId = BigInt(userOperation.eip7702Auth!.chainId!);
+    const delegationAddress = userOperation.eip7702Auth!.address! as Hex; // EOA address
+    const delegationNonce = BigInt(userOperation.eip7702Auth!.nonce!);
+
+    console.log(`Signing EIP-7702 delegation for EOA ${delegationAddress} on chain ${delegationChainId} with nonce ${delegationNonce}`);
+
+    const viemSignedAuth = await eoaWalletClient.signAuthorization({
+        account: eoaSignerAccount,      // The EOA signing the delegation
+        contractAddress: delegationAddress, // For this type of delegation, it's the EOA's address itself
+        chainId: delegationChainId,
+        nonce: delegationNonce,
+    });
+
+    // Populate the rest of the eip7702Auth object with the signature from viem
+    userOperation.eip7702Auth!.yParity = toBeHex(viemSignedAuth.yParity, { size: 1 }); // Ensure 0x00 or 0x01
+    userOperation.eip7702Auth!.r = viemSignedAuth.r;
+    userOperation.eip7702Auth!.s = viemSignedAuth.s;
     
+    console.log("EIP-7702 Delegation Authorization signed using viem.signAuthorization.");
+
     const paymaster = new CandidePaymaster(CANDIDE_PAYMASTER_URL);
     const sponsorshipPolicyId = process.env.SPONSORSHIP_POLICY_ID || ""; 
 
