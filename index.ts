@@ -1,4 +1,3 @@
-import * as dotenv from 'dotenv';
 import {
     Simple7702Account,
     createAndSignEip7702DelegationAuthorization,
@@ -35,7 +34,6 @@ const publicClient: PublicClient = createPublicClient({
 const eoaDelegatorAccount: PrivateKeyAccount = privateKeyToAccount(PRIVATE_KEY as Hex);
 
 async function runBundledEip7702Transaction() {
-    dotenv.config();
 
     const chainId = BigInt(sepolia.id);
     const eoaDelegatorPrivateKey = PRIVATE_KEY;
