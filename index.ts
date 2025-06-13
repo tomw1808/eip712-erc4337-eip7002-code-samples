@@ -15,7 +15,10 @@ import myNftFullJson from './contracts/out/MyNFT.sol/MyNFT.json';
 const PRIVATE_KEY = "0x36faa8ac683b2ac54b2cb113b345107b790191014223478d786ed0c0786eedd9"; // EOA
 const CANDIDE_BUNDLER_URL = "https://api.candide.dev/bundler/v3/sepolia/5bfc7f3150f9c9834d6b024261680726";
 const CANDIDE_PAYMASTER_URL = "https://api.candide.dev/paymaster/v3/sepolia/5bfc7f3150f9c9834d6b024261680726";
-const JSON_RPC_NODE_PROVIDER_URL = sepolia.rpcUrls.default.http[0];
+// The default viem RPC for Sepolia can point to providers with strict batch request limits.
+// The error "Batch of more than 3 requests are not allowed on free tier" indicates this issue.
+// Switching to a more permissive public RPC node like publicnode.
+const JSON_RPC_NODE_PROVIDER_URL = "https://ethereum-sepolia-rpc.publicnode.com";
 
 const PLATFORM_CREDITS_CONTRACT_ADDRESS = '0xd000f3951141a15afb7f64c34fc7273fe39d9326' as Hex;
 const MY_NFT_CONTRACT_ADDRESS = '0x452b0ad1eed3498430ffe764256529e7ca2aebda' as Hex;
