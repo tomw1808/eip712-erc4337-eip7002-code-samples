@@ -1,10 +1,9 @@
 import {
     Simple7702Account,
-    createAndSignEip7702DelegationAuthorization,
     CandidePaymaster,
     MetaTransaction,
 } from "abstractionkit";
-import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, createWalletClient, type PublicClient } from 'viem';
+import { http, type Hex, createPublicClient, parseEther, encodeFunctionData, type Abi, createWalletClient, type PublicClient, toHex } from 'viem';
 import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 
@@ -35,6 +34,13 @@ const publicClient: PublicClient = createPublicClient({
 
 // EOA that will authorize the Simple7702Account
 const eoaDelegatorAccount: PrivateKeyAccount = privateKeyToAccount(PRIVATE_KEY as Hex);
+
+// Viem wallet client for signing EIP-7702 authorizations
+const walletClient = createWalletClient({
+    account: eoaDelegatorAccount,
+    chain: sepolia,
+    transport: http(JSON_RPC_NODE_PROVIDER_URL),
+});
 
 async function runBundledEip7702Transaction() {
 
@@ -97,18 +103,29 @@ async function runBundledEip7702Transaction() {
         }
     );
 
-    // Sign the EIP-7702 delegation authorization
-    const rawPrivateKeyForAbstractionKit = eoaDelegatorPrivateKey.startsWith('0x')
-        ? eoaDelegatorPrivateKey.substring(2)
-        : eoaDelegatorPrivateKey;
+    // --- Sign EIP-7702 delegation authorization using viem ---
+    // The nonce is fetched by abstractionkit's createUserOperation and is present in the userOp.
+    const authorizationNonce = BigInt(userOperation.eip7702Auth!.nonce!);
 
-    userOperation.eip7702Auth = createAndSignEip7702DelegationAuthorization(
-        BigInt(userOperation.eip7702Auth!.chainId!),
-        userOperation.eip7702Auth!.address!, // This is the EOA address
-        BigInt(userOperation.eip7702Auth!.nonce!),
-        rawPrivateKeyForAbstractionKit
-    );
-    console.log("EIP-7702 Delegation Authorization signed.");
+    console.log("Signing EIP-7702 Delegation Authorization with viem...");
+    const eip7702Signature = await walletClient.signAuthorization({
+        account: eoaDelegatorAccount,
+        contractAddress: smartAccountAddress as Hex, // The contract being authorized
+        nonce: authorizationNonce,
+        chainId: sepolia.id,
+    });
+
+    // Replace abstractionkit's eip7702Auth object with the one signed by viem
+    // The fields need to be hex strings for abstractionkit's types.
+    userOperation.eip7702Auth = {
+        address: eoaDelegatorPublicAddress,
+        chainId: toHex(sepolia.id),
+        nonce: toHex(authorizationNonce),
+        r: eip7702Signature.r,
+        s: eip7702Signature.s,
+        yParity: toHex(eip7702Signature.yParity),
+    };
+    console.log("EIP-7702 Delegation Authorization signed with viem.");
 
     // Use Candide Paymaster for sponsorship (optional)
     const paymaster = new CandidePaymaster(CANDIDE_PAYMASTER_URL);
@@ -123,6 +140,9 @@ async function runBundledEip7702Transaction() {
     console.log("Paymaster data added (if sponsorship successful).");
 
     // Sign the UserOperation with the EOA's key (as required by Simple7702Account)
+    const rawPrivateKeyForAbstractionKit = eoaDelegatorPrivateKey.startsWith('0x')
+        ? eoaDelegatorPrivateKey.substring(2)
+        : eoaDelegatorPrivateKey;
     userOperation.signature = simple7702SmartAccount.signUserOperation(
         userOperation,
         rawPrivateKeyForAbstractionKit,
