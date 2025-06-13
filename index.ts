@@ -106,23 +106,27 @@ async function runBundledEip7702Transaction() {
 
     // --- Sign EIP-7702 delegation authorization using viem ---
     // The nonce is fetched by abstractionkit's createUserOperation and is present in the userOp.
-    // const authorizationNonce = userOperation.eip7702Auth!.nonce!;
-    const sessionAccountNonceForAuth = await publicClient.getTransactionCount({ address: eoaDelegatorAccount.address, blockTag: 'pending' });
-
+    // This is the smart account's authorization nonce, NOT the EOA's transaction count.
+    const authorizationNonce = BigInt(userOperation.eip7702Auth!.nonce!);
 
     console.log("Signing EIP-7702 Delegation Authorization with viem...");
     const eip7702Signature = await walletClient.signAuthorization({
         account: eoaDelegatorAccount,
         contractAddress: smartAccountAddress as Hex, // The contract being authorized
-        nonce: sessionAccountNonceForAuth,
+        nonce: authorizationNonce,
         chainId: sepolia.id,
     });
 
     // Replace abstractionkit's eip7702Auth object with the one signed by viem
     // The fields need to be hex strings for abstractionkit's types.
-    delete eip7702Signature.v;
-    userOperation.eip7702Auth = { ...eip7702Signature, chainId: toHex(chainId), nonce: toHex(sessionAccountNonceForAuth), yParity: eip7702Signature.yParity ? toHex(eip7702Signature.yParity) : "0x0" };
-
+    userOperation.eip7702Auth = {
+        address: eoaDelegatorPublicAddress,
+        chainId: toHex(sepolia.id),
+        nonce: toHex(authorizationNonce),
+        r: eip7702Signature.r,
+        s: eip7702Signature.s,
+        yParity: toHex(eip7702Signature.yParity),
+    };
     console.log("EIP-7702 Delegation Authorization signed with viem.");
 
     // Use Candide Paymaster for sponsorship (optional)
