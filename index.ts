@@ -19,6 +19,10 @@ const CANDIDE_PAYMASTER_URL = "https://api.candide.dev/paymaster/v3/sepolia/5bfc
 // Switching to a more permissive public RPC node like publicnode.
 const JSON_RPC_NODE_PROVIDER_URL = "https://ethereum-sepolia-rpc.publicnode.com";
 
+// The address of the contract implementation for Simple7702Account.
+// Per user feedback, this address should be used when signing the EIP-7702 authorization.
+const SIMPLE7702_DELEGATEE_ADDRESS = Simple7702Account.DEFAULT_DELEGATEE_ADDRESS as Hex;
+
 const PLATFORM_CREDITS_CONTRACT_ADDRESS = '0xd000f3951141a15afb7f64c34fc7273fe39d9326' as Hex;
 const MY_NFT_CONTRACT_ADDRESS = '0x452b0ad1eed3498430ffe764256529e7ca2aebda' as Hex;
 const NFT_PRICE_IN_CREDITS = parseEther('100');
@@ -91,34 +95,42 @@ async function runBundledEip7702Transaction() {
 
     console.log("Preparing UserOperation for batch: topUpCredits, approve, buyNFT");
 
+    // --- Get Authorization Nonce ---
+    // Per user feedback, using the EOA's transaction count as the nonce for authorization.
+    // This is unconventional for EIP-7702, which typically uses a contract-level nonce for replay protection.
+    const authorizationNonce = await publicClient.getTransactionCount({
+        address: eoaDelegatorAccount.address,
+        blockTag: 'pending'
+    });
+    console.log(`Using EOA transaction count as authorization nonce: ${authorizationNonce}`);
+
+
     // --- Create UserOperation using abstractionkit ---
+    // We pass the nonce to abstractionkit, overriding its internal nonce fetching for the authorization.
     let userOperation = await simple7702SmartAccount.createUserOperation(
         transactions,
-        JSON_RPC_NODE_PROVIDER_URL, // For nonce and gas prices
+        JSON_RPC_NODE_PROVIDER_URL, // For gas prices
         CANDIDE_BUNDLER_URL,      // For gas estimation
         {
             eip7702Auth: {
                 chainId: chainId,
+                nonce: BigInt(authorizationNonce)
             }
         }
     );
-    console.log({userOperation})
 
     // --- Sign EIP-7702 delegation authorization using viem ---
-    // The nonce is fetched by abstractionkit's createUserOperation and is present in the userOp.
-    // This is the smart account's authorization nonce, NOT the EOA's transaction count.
-    const authorizationNonce = BigInt(userOperation.eip7702Auth!.nonce!);
-
     console.log("Signing EIP-7702 Delegation Authorization with viem...");
+    // Per user feedback, the contract address to authorize is the delegatee/implementation,
+    // not the smart account proxy address itself.
     const eip7702Signature = await walletClient.signAuthorization({
         account: eoaDelegatorAccount,
-        contractAddress: smartAccountAddress as Hex, // The contract being authorized
-        nonce: authorizationNonce,
+        contractAddress: SIMPLE7702_DELEGATEE_ADDRESS, // Using the implementation address
+        nonce: BigInt(authorizationNonce),
         chainId: sepolia.id,
     });
 
     // Replace abstractionkit's eip7702Auth object with the one signed by viem
-    // The fields need to be hex strings for abstractionkit's types.
     userOperation.eip7702Auth = {
         address: eoaDelegatorPublicAddress,
         chainId: toHex(sepolia.id),
