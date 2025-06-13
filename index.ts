@@ -126,19 +126,14 @@ async function runBundledEip7702Transaction() {
     const eip7702Signature = await walletClient.signAuthorization({
         account: eoaDelegatorAccount,
         contractAddress: SIMPLE7702_DELEGATEE_ADDRESS, // Using the implementation address
-        nonce: BigInt(authorizationNonce),
+        nonce: authorizationNonce,
         chainId: sepolia.id,
     });
 
     // Replace abstractionkit's eip7702Auth object with the one signed by viem
-    userOperation.eip7702Auth = {
-        address: eoaDelegatorPublicAddress,
-        chainId: toHex(sepolia.id),
-        nonce: toHex(authorizationNonce),
-        r: eip7702Signature.r,
-        s: eip7702Signature.s,
-        yParity: toHex(eip7702Signature.yParity),
-    };
+     delete eip7702Signature.v;
+    userOperation.eip7702Auth = { ...eip7702Signature, chainId: toHex(chainId), nonce: toHex(authorizationNonce), yParity: eip7702Signature.yParity ? toHex(eip7702Signature.yParity) : "0x0" };
+    
     console.log("EIP-7702 Delegation Authorization signed with viem.");
 
     // Use Candide Paymaster for sponsorship (optional)

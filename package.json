@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "abstractionkit": "^0.2.21",
     "permissionless": "^0.2.47",
     "viem": "^2.30.6"
   }
