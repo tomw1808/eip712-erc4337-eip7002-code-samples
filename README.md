@@ -33,9 +33,84 @@ Navigate through the branches in order to witness the full saga of Account Abstr
 *   **Mission**: Get the best of both worlds! We use the ERC-4337 infrastructure (Bundlers, Paymasters) for gasless transaction relaying. However, the core interaction with `MyNFT` leverages the `buyNFTWithSignatureAndPermit` function from `example3`.
 *   **The Twist**: The EOA signs the EIP-712 messages, and the smart wallet batches these calls. The NFT is ultimately minted to the EOA, showcasing how AA can serve as a powerful backend for EOA-centric experiences.
 
-### 6️⃣: [`example6`](../../tree/example6) - The Apex: EIP-7702 - EOA Becomes Smart (Work In Progress) 🧠⚡
-*   **Mission**: Witness the bleeding edge! (This branch will explore EIP-7702 once finalized and widely supported).
-*   **The Vision**: EIP-7702 aims to allow EOAs to temporarily act like smart contracts for the duration of a transaction batch. This means the EOA itself could become the `msg.sender` for complex operations, potentially eliminating the need for separate permit signatures in many cases while still leveraging AA infrastructure. Stay tuned as this standard evolves!
+### 6️⃣: [`example6`](../../tree/example6) - The Apex: EIP-7702 - EOA Becomes Smart 🧠⚡
+
+*   **Mission**: Witness the bleeding edge of account abstraction! This example demonstrates how to use **EIP-7702** to allow a standard EOA to initiate a complex, multi-step action (`topUpCredits`, `approve`, `buyNFT`) and have it executed in a **single, gasless transaction**.
+
+*   **The Vision in Action**: EIP-7702 allows an EOA to temporarily "upgrade" itself by acting through a smart contract for the duration of a transaction. We leverage this to use the powerful ERC-4337 infrastructure (Bundlers and Paymasters) without needing the user to already have a deployed smart wallet.
+
+---
+
+#### 🛠️ How to Run This Example
+
+1.  **Install Dependencies**:
+    Make sure you are on the correct branch and have installed the necessary packages.
+    ```bash
+    # Using bun
+    bun install
+
+    # Or using npm
+    npm install
+    ```
+
+2.  **Execute the Script**:
+    Run the `index.ts` script to start the process.
+    ```bash
+    bun index.ts
+    ```
+    You will see detailed logs outlining each step, from creating the UserOperation to its final confirmation on the blockchain.
+
+---
+
+#### 🔬 A Deep Dive into `index.ts`
+
+The script orchestrates a sophisticated flow to achieve its goal. Here's a step-by-step breakdown:
+
+1.  **Setup & Initialization**
+    *   An EOA is defined via a hardcoded `PRIVATE_KEY`.
+    *   A `Simple7702Account` instance from `abstractionkit` is created. This object calculates the address of the smart account proxy that will execute the transaction on behalf of our EOA.
+
+2.  **Defining the Transaction Batch**
+    *   Three distinct actions are defined and encoded:
+        1.  `topUpCredits()`: The smart account calls the faucet on the `PlatformCredits` contract.
+        2.  `approve()`: The smart account approves the `MyNFT` contract to spend its credits.
+        3.  `buyNFT()`: The smart account calls the `buyNFT` function to mint an NFT.
+    *   These are bundled into a `MetaTransaction` array, ready to be executed sequentially.
+
+3.  **Creating the `UserOperation`**
+    *   `abstractionkit`'s `createUserOperation` function is called. It takes our transaction batch and prepares a preliminary `UserOperation` object, estimating the required gas.
+
+4.  **Signing the EIP-7702 Authorization (The Crucial Step!)**
+    *   This is the core of EIP-7702. The EOA must sign a message to authorize the smart contract to act on its behalf. We use `viem`'s `walletClient.signAuthorization` for this.
+    *   Getting the signature parameters right is critical and was the source of previous bugs. Pay close attention here:
+
+    > [!WARNING]
+    > **Authorization `nonce`**: The nonce used for the EIP-7702 authorization is the **EOA's transaction count** (`pending` nonce). This is a specific requirement for this implementation.
+    >
+    > **Authorization `contractAddress`**: The address signed over is **NOT** the user's smart account proxy address. It is the address of the `Simple7702Account` **implementation contract** (`0xe6Cae83BdE06E4c305530e199D7217f42808555B`). This authorizes the logic contract to be the executor.
+
+5.  **Sponsorship via Paymaster**
+    *   The `UserOperation` is sent to the Candide Paymaster.
+    *   The Paymaster verifies it can sponsor the transaction, and if so, returns an updated `UserOperation` with `paymasterAndData` included. This is what makes the transaction gasless for our EOA.
+
+6.  **Final `UserOperation` Signature**
+    *   The EOA signs the hash of the *entire* `UserOperation` (which now includes the EIP-7702 authorization and the paymaster data). This is the final signature required by the ERC-4337 EntryPoint contract.
+
+7.  **Sending to the Bundler**
+    *   The fully formed and signed `UserOperation` is sent to the Candide Bundler via an RPC call. The Bundler validates it and includes it in a bundle transaction on-chain.
+
+8.  **Verification**
+    *   The script waits for the transaction to be mined and confirms its success. It then queries the blockchain to prove that the `Simple7702Account`'s address now owns the newly minted NFT.
+
+---
+
+#### ✨ Key Takeaways & What to Notice ✨
+
+*   **`msg.sender` is the Smart Account**: When the `MyNFT` contract is called, the `msg.sender` is the address of the `Simple7702Account` proxy, **not** the EOA. The NFT is minted to and owned by this smart account.
+*   **Two Distinct Signatures**: Understand the difference between:
+    1.  The **EIP-7702 Authorization Signature**: Authorizes the smart contract implementation to act for the EOA.
+    2.  The **UserOperation Signature**: Authorizes the EntryPoint to execute the `UserOperation`.
+*   **The Power of Batching**: EIP-7702 + ERC-4337 allows us to combine multiple contract calls into a single, atomic, and gasless transaction, creating a vastly superior user experience.
 
 ## 🛠️ Tech Stack & Tools 🛠️
 
@@ -46,7 +121,7 @@ Navigate through the branches in order to witness the full saga of Account Abstr
 *   **ERC-4337**: The Account Abstraction standard.
 *   **EIP-712**: For typed structured data hashing and signing.
 *   **EIP-2612**: For gasless ERC20 approvals (permits).
-*   **(Future) EIP-7702**: For EOA-controlled smart contract behavior.
+*   **EIP-7702**: For EOA-controlled smart contract behavior.
 
 ## 🚀 Getting Started 🚀
 
@@ -63,10 +138,12 @@ Navigate through the branches in order to witness the full saga of Account Abstr
         npm install
         # or
         yarn install
+        # or
+        bun install
         ```
 3.  **Checkout a branch:**
     ```bash
-    git checkout example1
+    git checkout example6
     ```
 4.  **Follow the specific README/instructions within each branch** to run the examples, deploy contracts, and execute scripts.
 
