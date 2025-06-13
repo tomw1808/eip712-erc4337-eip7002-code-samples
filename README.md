@@ -37,7 +37,7 @@ Navigate through the branches in order to witness the full saga of Account Abstr
 
 *   **Mission**: Witness the bleeding edge of account abstraction! This example demonstrates how to use **EIP-7702** to allow a standard EOA to initiate a complex, multi-step action (`topUpCredits`, `approve`, `buyNFT`) and have it executed in a **single, gasless transaction**.
 
-*   **The Vision in Action**: EIP-7702 allows an EOA to temporarily "upgrade" itself by acting through a smart contract for the duration of a transaction. We leverage this to use the powerful ERC-4337 infrastructure (Bundlers and Paymasters) without needing the user to already have a deployed smart wallet.
+*   **The Vision in Action**: EIP-7702 allows an EOA to temporarily "upgrade" itself by associating contract code with its own address for the duration of a transaction. We leverage this to use the powerful ERC-4337 infrastructure (Bundlers and Paymasters) without needing a separate smart wallet. The result? The `msg.sender` in the target contract is the **EOA's address**, ensuring maximum compatibility with the existing ecosystem.
 
 ---
 
@@ -68,7 +68,7 @@ The script orchestrates a sophisticated flow to achieve its goal. Here's a step-
 
 1.  **Setup & Initialization**
     *   An EOA is defined via a hardcoded `PRIVATE_KEY`.
-    *   A `Simple7702Account` instance from `abstractionkit` is created. This object calculates the address of the smart account proxy that will execute the transaction on behalf of our EOA.
+    *   A `Simple7702Account` instance from `abstractionkit` is created. Crucially, this object uses the **EOA's public address** as the account address, setting the stage for the EIP-7702 magic.
 
 2.  **Defining the Transaction Batch**
     *   Three distinct actions are defined and encoded:
@@ -100,17 +100,21 @@ The script orchestrates a sophisticated flow to achieve its goal. Here's a step-
     *   The fully formed and signed `UserOperation` is sent to the Candide Bundler via an RPC call. The Bundler validates it and includes it in a bundle transaction on-chain.
 
 8.  **Verification**
-    *   The script waits for the transaction to be mined and confirms its success. It then queries the blockchain to prove that the `Simple7702Account`'s address now owns the newly minted NFT.
+    *   The script waits for the transaction to be mined and confirms its success. It then queries the blockchain to prove that the **EOA's address** now owns the newly minted NFT, confirming that the EOA itself was the actor.
 
 ---
 
 #### ✨ Key Takeaways & What to Notice ✨
 
-*   **`msg.sender` is the Smart Account**: When the `MyNFT` contract is called, the `msg.sender` is the address of the `Simple7702Account` proxy, **not** the EOA. The NFT is minted to and owned by this smart account.
+> [!IMPORTANT]
+> **`msg.sender` is the EOA!**
+> Unlike traditional ERC-4337 where `msg.sender` is a separate smart contract wallet, EIP-7702 makes the **EOA itself the `msg.sender`**. The authorization signature effectively tells the Ethereum protocol: "For this transaction, treat my EOA as if it has the code of the `Simple7702Account` implementation."
+> This is a revolutionary concept for compatibility, as it allows EOAs to gain smart contract capabilities (like batching and gas sponsorship) while interacting with contracts that may have been designed to only work with EOAs.
+
 *   **Two Distinct Signatures**: Understand the difference between:
-    1.  The **EIP-7702 Authorization Signature**: Authorizes the smart contract implementation to act for the EOA.
-    2.  The **UserOperation Signature**: Authorizes the EntryPoint to execute the `UserOperation`.
-*   **The Power of Batching**: EIP-7702 + ERC-4337 allows us to combine multiple contract calls into a single, atomic, and gasless transaction, creating a vastly superior user experience.
+    1.  The **EIP-7702 Authorization Signature**: Authorizes the smart contract implementation to be the "code" for the EOA for one transaction.
+    2.  The **UserOperation Signature**: Authorizes the ERC-4337 EntryPoint to execute the `UserOperation`.
+*   **The Power of Batching**: EIP-7702 + ERC-4337 allows us to combine multiple contract calls into a single, atomic, and gasless transaction, creating a vastly superior user experience directly from an EOA.
 
 ## 🛠️ Tech Stack & Tools 🛠️
 
