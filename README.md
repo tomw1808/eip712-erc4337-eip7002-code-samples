@@ -46,7 +46,7 @@ Navigate through the branches in order to witness the full saga of Account Abstr
 *   **ERC-4337**: The Account Abstraction standard.
 *   **EIP-712**: For typed structured data hashing and signing.
 *   **EIP-2612**: For gasless ERC20 approvals (permits).
-*   **(Future) EIP-7702**: For EOA-controlled smart contract behavior.
+*   **EIP-7702**: For EOA-controlled smart contract behavior.
 
 ## 🚀 Getting Started 🚀
 
@@ -66,17 +66,5 @@ Navigate through the branches in order to witness the full saga of Account Abstr
         ```
 3.  **Checkout a branch:**
     ```bash
-    git checkout example1
+    git checkout example2
     ```
-4.  **Follow the specific README/instructions within each branch** to run the examples, deploy contracts, and execute scripts.
-
-## ✨ Why This Repo Is Your Ultimate Guide ✨
-
-*   **Progressive Learning**: Builds concepts step-by-step.
-*   **Practical Examples**: Real-world use cases, not just theory.
-*   **Code-Focused**: Dive deep into Solidity and TypeScript implementations.
-*   **Future-Proof**: Covers the latest standards and anticipates upcoming ones.
-
-Embark on this odyssey, and you'll emerge not just understanding Account Abstraction, but ready to build the next generation of decentralized applications.
-
-**Let the journey begin!** 🌟
