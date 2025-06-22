@@ -57,26 +57,17 @@ Navigate through the branches in order to witness the full saga of Account Abstr
     ```
 2.  **Install dependencies:**
     *   Ensure you have Foundry installed: `curl -L https://foundry.paradigm.xyz | bash` then `foundryup`.
-    *   For the TypeScript examples (usually in the root or a `ts/` or `js/` folder within branches):
-        ```bash
-        # Navigate to the TS/JS project directory if applicable
-        npm install
-        # or
-        yarn install
-        ```
+    
 3.  **Checkout a branch:**
     ```bash
     git checkout example1
     ```
-4.  **Follow the specific README/instructions within each branch** to run the examples, deploy contracts, and execute scripts.
 
-## ✨ Why This Repo Is Your Ultimate Guide ✨
+4.  **Deploy Contracts**
+    You can run `forge script script/Deploy.s.sol` to deploy the contracts or route it through [foundry-dashboard](https://github.com/tomw1808/foundry-dashboard)
 
-*   **Progressive Learning**: Builds concepts step-by-step.
-*   **Practical Examples**: Real-world use cases, not just theory.
-*   **Code-Focused**: Dive deep into Solidity and TypeScript implementations.
-*   **Future-Proof**: Covers the latest standards and anticipates upcoming ones.
+5.  **Interaction**
+    To Interact with the contracts, you can use cast, like `cast send [addressOfCredits] "grantCredits(address,uint256)" "([yourAddress],100000000000000000000)"`
 
-Embark on this odyssey, and you'll emerge not just understanding Account Abstraction, but ready to build the next generation of decentralized applications.
 
 **Let the journey begin!** 🌟
