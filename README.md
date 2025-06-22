@@ -52,8 +52,8 @@ Navigate through the branches in order to witness the full saga of Account Abstr
 
 1.  **Clone the repo:**
     ```bash
-    git clone <your-repo-link>
-    cd <your-repo-name>
+    git clone hgit@github.com:tomw1808/eip712-erc4337-eip7002-code-samples.git
+    cd eip712-erc4337-eip7002-code-samples
     ```
 2.  **Install dependencies:**
     *   Ensure you have Foundry installed: `curl -L https://foundry.paradigm.xyz | bash` then `foundryup`.
