@@ -57,13 +57,7 @@ Navigate through the branches in order to witness the full saga of Account Abstr
     ```
 2.  **Install dependencies:**
     *   Ensure you have Foundry installed: `curl -L https://foundry.paradigm.xyz | bash` then `foundryup`.
-    *   For the TypeScript examples (usually in the root or a `ts/` or `js/` folder within branches):
-        ```bash
-        # Navigate to the TS/JS project directory if applicable
-        npm install
-        # or
-        yarn install
-        ```
+    
 3.  **Checkout a branch:**
     ```bash
     git checkout example2
